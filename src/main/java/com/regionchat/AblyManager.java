@@ -137,7 +137,7 @@ public class AblyManager {
 			return;
 
 		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
-				.append(color, receivedMsg);
+				.append(receivedMsg);
 
 		if (username.length() > 12) {
 			return;
@@ -148,6 +148,7 @@ public class AblyManager {
 				.name(msg.symbol + msg.username)
 				.runeLiteFormattedMessage(chatMessageBuilder.build())
 				.build());
+
 		for (Player player : client.getPlayers()) {
 			if (player != null &&
 					player.getName() != null &&
@@ -159,11 +160,11 @@ public class AblyManager {
 			}
 		}
 
-		// player.setOverheadCycle(CYCLES_FOR_OVERHEAD_TEXT);
 	}
 
 	public boolean tryUpdateMessages(String name, String message) {
 		String prevMessage = previousMessages.get(name);
+
 		// If someone is spamming the same message during a session, block it
 		if (message.equals(prevMessage)) {
 			return false;
