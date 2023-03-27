@@ -37,10 +37,8 @@ import io.ably.lib.types.AblyException;
 import io.ably.lib.types.ClientOptions;
 import io.ably.lib.types.ErrorInfo;
 import io.ably.lib.types.Message;
-import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -117,11 +115,11 @@ public class AblyManager {
 
 	private void handleMessage(Message message) {
 		if (client.getGameState() == GameState.LOGGED_IN) {
-			handleAblyMessage(message, config.regionChatColour());
+			handleAblyMessage(message);
 		}
 	}
 
-	private void handleAblyMessage(Message message, Color color) {
+	private void handleAblyMessage(Message message) {
 		if (client.getGameState() != GameState.LOGGED_IN) {
 			return;
 		}
