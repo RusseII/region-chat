@@ -60,7 +60,8 @@ public class AblyManager {
 
 	private final Client client;
 
-	private final Gson gson = new Gson();
+	@Inject
+	Gson gson;
 
 	private final Map<String, String> previousMessages = new HashMap<>();
 
