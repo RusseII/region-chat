@@ -54,13 +54,9 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Text;
 
 @Slf4j
-@PluginDescriptor(
-	name = "Ably Region Chat",
-	description = "Talk to others even if they go to another fishing spot!",
-	tags = { "chat" }
-)
-public class RegionChatPlugin extends Plugin
-{
+@PluginDescriptor(name = "Ably Region Chat", description = "Talk to others even if they go to another fishing spot!", tags = {
+		"chat" })
+public class RegionChatPlugin extends Plugin {
 	@Inject
 	private AblyManager ablyManager;
 
@@ -87,131 +83,125 @@ public class RegionChatPlugin extends Plugin
 	boolean inPvp;
 
 	@Override
-	protected void startUp() throws Exception
-	{
-		initRegions();
+	protected void startUp() throws Exception {
+		// initRegions();
 		ablyManager.startConnection();
 	}
 
 	@Override
-	protected void shutDown() throws Exception
-	{
+	protected void shutDown() throws Exception {
 		ablyManager.closeConnection();
 	}
 
 	// TODO: If not logged in, close channel
 
 	@Subscribe
-	public void onGameTick(GameTick event)
-	{
-		LocalPoint currentPos = client.getLocalPlayer().getLocalLocation();
-		WorldPoint currentWorldPos = client.getLocalPlayer().getWorldLocation();
+	public void onGameTick(GameTick event) {
+		// LocalPoint currentPos = client.getLocalPlayer().getLocalLocation();
+		// WorldPoint currentWorldPos = client.getLocalPlayer().getWorldLocation();
 
-		WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, currentPos);
+		// WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, currentPos);
 
-		boolean foundRegion = false;
+		// boolean foundRegion = false;
 
-		for (Region region : Region.values())
-		{
-			boolean validRegion = false;
-			try
-			{
-				validRegion = (boolean) regionsToConfigs.get(region).call();
-			}
-			catch (Exception e)
-			{
-				e.printStackTrace();
-			}
+		// for (Region region : Region.values()) {
+		// boolean validRegion = false;
+		// try {
+		// validRegion = (boolean) regionsToConfigs.get(region).call();
+		// } catch (Exception e) {
+		// e.printStackTrace();
+		// }
 
-			if (validRegion && region.getZones().stream().anyMatch((zone) -> zone.contains(worldPoint)))
-			{
-				int regionID = region.getInstancedRegionID(currentWorldPos, worldPoint);
-				foundRegion = true;
-				String channelName = "";
-				channelName += client.getWorld();
-				if (region.isInstance())
-				{
-					channelName +=  ":" + regionID;
-				}
+		// if (validRegion && region.getZones().stream().anyMatch((zone) ->
+		// zone.contains(worldPoint))) {
+		// int regionID = region.getInstancedRegionID(currentWorldPos, worldPoint);
+		// foundRegion = true;
+		// String channelName = "";
+		// channelName += client.getWorld();
+		// if (region.isInstance()) {
+		// channelName += ":" + regionID;
+		// }
 
-				ablyManager.connectToRegion(region, channelName);
-			}
-		}
+		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
+		// }
+		// }
 
-		if (!foundRegion)
-		{
-			ablyManager.disconnectFromRegions();
-		}
+		// if (!foundRegion) {
+		// ablyManager.disconnectFromRegions();
+		// }
 	}
 
-	@Subscribe
-	public void onVarbitChanged(VarbitChanged e)
-	{
-		inPvp = client.getVar(Varbits.PVP_SPEC_ORB) == 1;
-	}
+	// @Subscribe
+	// public void onVarbitChanged(VarbitChanged e) {
+	// inPvp = client.getVar(Varbits.PVP_SPEC_ORB) == 1;
+	// }
 
 	@Subscribe
-	public void onChatMessage(ChatMessage event)
-	{
+	public void onChatMessage(ChatMessage event) {
 		EnumSet<WorldType> wt = client.getWorldType();
 
-		if (wt.contains(WorldType.BOUNTY) ||
-			wt.contains(WorldType.DEADMAN) ||
-			wt.contains(WorldType.PVP) ||
-			inPvp
-		)
-		{
-			return;
-		}
+		// if (wt.contains(WorldType.BOUNTY) ||
+		// wt.contains(WorldType.DEADMAN) ||
+		// wt.contains(WorldType.PVP) ||
+		// inPvp) {
+		// return;
+		// }
+		log.info(event.getType().toString());
 
 		String cleanedName = Text.sanitize(event.getName());
 		String cleanedMessage = Text.removeTags(event.getMessage());
+		log.info(cleanedMessage);
+		log.info(cleanedName);
 
+		boolean isPublicOrPrivate = event.getType().equals(ChatMessageType.PUBLICCHAT)
+				|| event.getType().equals(ChatMessageType.PRIVATECHATOUT);
 
-		if (event.getType() != ChatMessageType.PUBLICCHAT ||
-			!cleanedName.equals(client.getLocalPlayer().getName()))
-		{
-			return;
+		// is local player sending message is failing due to it showing the data for who
+		// sent it vs who the sender of the msg is
+		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName())
+				|| event.getType().equals(ChatMessageType.PRIVATECHATOUT);
+		if (isPublicOrPrivate) {
+			log.info("is public or private");
+		}
+		if (isPublicOrPrivate && isLocalPlayerSendingMessage) {
+			log.info("sending event");
+			ablyManager.tryUpdateMessages(cleanedName, cleanedMessage);
+			ablyManager.publishMessage(cleanedMessage);
+		} else {
+			ablyManager.tryUpdateMessages(cleanedName, cleanedMessage);
+
 		}
 
-		ablyManager.tryUpdateMessages(cleanedName, cleanedMessage);
-		ablyManager.publishMessage(cleanedMessage);
 	}
 
 	@Subscribe
-	public void onCommandExecuted(CommandExecuted commandExecuted)
-	{
-		if (developerMode && commandExecuted.getCommand().equals("regionchat"))
-		{
+	public void onCommandExecuted(CommandExecuted commandExecuted) {
+		if (developerMode && commandExecuted.getCommand().equals("regionchat")) {
 			if (commandExecuted.getArguments().length == 0 ||
-				(Arrays.stream(commandExecuted.getArguments()).toArray()[0]).equals("hide"))
-			{
+					(Arrays.stream(commandExecuted.getArguments()).toArray()[0]).equals("hide")) {
 				overlayManager.remove(regionWidgetOverlay);
-			}
-			else if ((Arrays.stream(commandExecuted.getArguments()).toArray()[0]).equals("show"))
+			} else if ((Arrays.stream(commandExecuted.getArguments()).toArray()[0]).equals("show"))
 				overlayManager.add(regionWidgetOverlay);
 		}
 	}
 
 	@Provides
-	RegionChatConfig provideConfig(ConfigManager configManager)
-	{
+	RegionChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(RegionChatConfig.class);
 	}
 
-	@Getter
-	private final Map<Region, Callable> regionsToConfigs = new HashMap<>();
+	// @Getter
+	// private final Map<Region, Callable> regionsToConfigs = new HashMap<>();
 
-	private void initRegions()
-	{
-		regionsToConfigs.put(Region.BARBARIAN_FISHING, config::barbFishingBaRegion);
-		regionsToConfigs.put(Region.ZEAH_RC, config::zeahRcRegion);
-		regionsToConfigs.put(Region.TEMPOROSS, config::temporossRegion);
-		regionsToConfigs.put(Region.MOTHERLODE_MINE, config::motherlodeMineRegion);
-		regionsToConfigs.put(Region.ZALCANO, config::zalcanoRegion);
-		regionsToConfigs.put(Region.SEPULCHRE, config::sepulchreRegion);
-		regionsToConfigs.put(Region.SULLIUSCEP, config::sulliuscepRegion);
-		regionsToConfigs.put(Region.ZEAH_CATACOMBS, config::zeahCatacombRegion);
-		regionsToConfigs.put(Region.WYRMS, config::wyrmRegion);
-	}
+	// private void initRegions() {
+	// regionsToConfigs.put(Region.BARBARIAN_FISHING, config::barbFishingBaRegion);
+	// regionsToConfigs.put(Region.ZEAH_RC, config::zeahRcRegion);
+	// regionsToConfigs.put(Region.TEMPOROSS, config::temporossRegion);
+	// regionsToConfigs.put(Region.MOTHERLODE_MINE, config::motherlodeMineRegion);
+	// regionsToConfigs.put(Region.ZALCANO, config::zalcanoRegion);
+	// regionsToConfigs.put(Region.SEPULCHRE, config::sepulchreRegion);
+	// regionsToConfigs.put(Region.SULLIUSCEP, config::sulliuscepRegion);
+	// regionsToConfigs.put(Region.ZEAH_CATACOMBS, config::zeahCatacombRegion);
+	// regionsToConfigs.put(Region.WYRMS, config::wyrmRegion);
+	// }
 }
