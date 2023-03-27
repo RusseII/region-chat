@@ -185,8 +185,8 @@ public class AblyManager {
 		}
 	}
 
-	public void connectToRegion(Region region, String world) {
-		String newChannelName = CHANNEL_NAME_PREFIX + ":" + world + ":" + region.getName();
+	public void connectToRegion(String world) {
+		String newChannelName = CHANNEL_NAME_PREFIX + ":" + world + ":" + "global";
 
 		if (changingChannels) {
 			return;
@@ -204,14 +204,14 @@ public class AblyManager {
 
 		if (ablyRegionChannel == null) {
 			ablyRegionChannel = ablyRealtime.channels.get(newChannelName);
-			setupAlerts(region);
+			// setupAlerts(region);
 			subscribeToChannel();
 			return;
 		}
 
 		try {
 			ablyRegionChannel.unsubscribe();
-			ablyRegionChannel.detach(detatchListener(newChannelName, region));
+			ablyRegionChannel.detach(detatchListener(newChannelName));
 		} catch (AblyException err) {
 			changingChannels = false;
 			System.err.println(err.getMessage());
@@ -248,12 +248,12 @@ public class AblyManager {
 		});
 	}
 
-	public CompletionListener detatchListener(String newChannelName, Region region) {
+	public CompletionListener detatchListener(String newChannelName) {
 		return new CompletionListener() {
 			@Override
 			public void onSuccess() {
 				ablyRegionChannel = ablyRealtime.channels.get(newChannelName);
-				setupAlerts(region);
+				// setupAlerts(region);
 				subscribeToChannel();
 			}
 
