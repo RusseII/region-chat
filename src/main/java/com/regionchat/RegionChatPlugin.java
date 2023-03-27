@@ -84,8 +84,9 @@ public class RegionChatPlugin extends Plugin {
 
 	@Override
 	protected void startUp() throws Exception {
-		// initRegions();
 		ablyManager.startConnection();
+		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
+
 	}
 
 	@Override
@@ -93,78 +94,18 @@ public class RegionChatPlugin extends Plugin {
 		ablyManager.closeConnection();
 	}
 
-	// TODO: If not logged in, close channel
-
-	@Subscribe
-	public void onGameTick(GameTick event) {
-		// LocalPoint currentPos = client.getLocalPlayer().getLocalLocation();
-		// WorldPoint currentWorldPos = client.getLocalPlayer().getWorldLocation();
-
-		// WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, currentPos);
-
-		// boolean foundRegion = false;
-
-		// for (Region region : Region.values()) {
-		// boolean validRegion = false;
-		// try {
-		// validRegion = (boolean) regionsToConfigs.get(region).call();
-		// } catch (Exception e) {
-		// e.printStackTrace();
-		// }
-
-		// if (validRegion && region.getZones().stream().anyMatch((zone) ->
-		// zone.contains(worldPoint))) {
-		// int regionID = region.getInstancedRegionID(currentWorldPos, worldPoint);
-		// foundRegion = true;
-		// String channelName = "";
-		// channelName += client.getWorld();
-		// if (region.isInstance()) {
-		// channelName += ":" + regionID;
-		// }
-
-		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
-		// }
-		// }
-
-		// if (!foundRegion) {
-		// ablyManager.disconnectFromRegions();
-		// }
-	}
-
-	// @Subscribe
-	// public void onVarbitChanged(VarbitChanged e) {
-	// inPvp = client.getVar(Varbits.PVP_SPEC_ORB) == 1;
-	// }
-
 	@Subscribe
 	public void onChatMessage(ChatMessage event) {
-		EnumSet<WorldType> wt = client.getWorldType();
-
-		// if (wt.contains(WorldType.BOUNTY) ||
-		// wt.contains(WorldType.DEADMAN) ||
-		// wt.contains(WorldType.PVP) ||
-		// inPvp) {
-		// return;
-		// }
-		log.info(event.getType().toString());
-
 		String cleanedName = Text.sanitize(event.getName());
 		String cleanedMessage = Text.removeTags(event.getMessage());
-		log.info(cleanedMessage);
-		log.info(cleanedName);
 
 		boolean isPublicOrPrivate = event.getType().equals(ChatMessageType.PUBLICCHAT)
 				|| event.getType().equals(ChatMessageType.PRIVATECHATOUT);
 
-		// is local player sending message is failing due to it showing the data for who
-		// sent it vs who the sender of the msg is
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName())
 				|| event.getType().equals(ChatMessageType.PRIVATECHATOUT);
-		if (isPublicOrPrivate) {
-			log.info("is public or private");
-		}
+
 		if (isPublicOrPrivate && isLocalPlayerSendingMessage) {
-			log.info("sending event");
 			ablyManager.tryUpdateMessages(cleanedName, cleanedMessage);
 			ablyManager.publishMessage(cleanedMessage);
 		} else {
@@ -189,19 +130,4 @@ public class RegionChatPlugin extends Plugin {
 	RegionChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(RegionChatConfig.class);
 	}
-
-	// @Getter
-	// private final Map<Region, Callable> regionsToConfigs = new HashMap<>();
-
-	// private void initRegions() {
-	// regionsToConfigs.put(Region.BARBARIAN_FISHING, config::barbFishingBaRegion);
-	// regionsToConfigs.put(Region.ZEAH_RC, config::zeahRcRegion);
-	// regionsToConfigs.put(Region.TEMPOROSS, config::temporossRegion);
-	// regionsToConfigs.put(Region.MOTHERLODE_MINE, config::motherlodeMineRegion);
-	// regionsToConfigs.put(Region.ZALCANO, config::zalcanoRegion);
-	// regionsToConfigs.put(Region.SEPULCHRE, config::sepulchreRegion);
-	// regionsToConfigs.put(Region.SULLIUSCEP, config::sulliuscepRegion);
-	// regionsToConfigs.put(Region.ZEAH_CATACOMBS, config::zeahCatacombRegion);
-	// regionsToConfigs.put(Region.WYRMS, config::wyrmRegion);
-	// }
 }
