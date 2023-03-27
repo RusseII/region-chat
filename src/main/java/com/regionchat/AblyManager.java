@@ -31,7 +31,6 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import io.ably.lib.realtime.AblyRealtime;
 import io.ably.lib.realtime.Channel;
-import io.ably.lib.realtime.ChannelEvent;
 import io.ably.lib.realtime.ChannelState;
 import io.ably.lib.realtime.CompletionListener;
 import io.ably.lib.types.AblyException;
@@ -53,7 +52,6 @@ import net.runelite.client.util.Text;
 import net.runelite.api.Player;
 import net.runelite.api.Constants;
 
-@Slf4j
 @Singleton
 public class AblyManager {
 
@@ -204,7 +202,6 @@ public class AblyManager {
 
 		if (ablyRegionChannel == null) {
 			ablyRegionChannel = ablyRealtime.channels.get(newChannelName);
-			// setupAlerts(region);
 			subscribeToChannel();
 			return;
 		}
@@ -218,42 +215,11 @@ public class AblyManager {
 		}
 	}
 
-	private void setupAlerts(Region region) {
-		ablyRegionChannel.on(ChannelEvent.attached, stateChange -> {
-			if (!config.shouldShowStateChanges()) {
-				return;
-			}
-
-			final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
-					.append("Entered new Ably Region Chat area: " + region.getName());
-
-			chatMessageManager.queue(QueuedMessage.builder()
-					.type(ChatMessageType.ENGINE)
-					.runeLiteFormattedMessage(chatMessageBuilder.build())
-					.build());
-		});
-
-		ablyRegionChannel.on(ChannelEvent.detached, stateChange -> {
-			if (!config.shouldShowStateChanges()) {
-				return;
-			}
-
-			final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
-					.append("Left Ably Region Chat area: " + region.getName());
-
-			chatMessageManager.queue(QueuedMessage.builder()
-					.type(ChatMessageType.ENGINE)
-					.runeLiteFormattedMessage(chatMessageBuilder.build())
-					.build());
-		});
-	}
-
 	public CompletionListener detatchListener(String newChannelName) {
 		return new CompletionListener() {
 			@Override
 			public void onSuccess() {
 				ablyRegionChannel = ablyRealtime.channels.get(newChannelName);
-				// setupAlerts(region);
 				subscribeToChannel();
 			}
 
