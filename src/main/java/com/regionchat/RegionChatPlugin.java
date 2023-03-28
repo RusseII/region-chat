@@ -63,6 +63,8 @@ public class RegionChatPlugin extends Plugin {
 	protected void startUp() throws Exception {
 		ablyManager.startConnection();
 		ablyManager.connectToGlobal();
+		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
+
 	}
 
 	@Override
