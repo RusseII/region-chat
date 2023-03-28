@@ -38,7 +38,9 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.util.Text;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @PluginDescriptor(name = "Ably Region Chat", description = "Talk to others even if they go to another fishing spot!", tags = {
 		"chat" })
 public class RegionChatPlugin extends Plugin {
@@ -60,7 +62,7 @@ public class RegionChatPlugin extends Plugin {
 	protected void startUp() throws Exception {
 		ablyManager.startConnection();
 		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
-
+		ablyManager.connectToGlobal();
 	}
 
 	@Override
@@ -73,18 +75,23 @@ public class RegionChatPlugin extends Plugin {
 		String cleanedName = Text.sanitize(event.getName());
 		String cleanedMessage = Text.removeTags(event.getMessage());
 
-		boolean isPublicOrPrivate = event.getType().equals(ChatMessageType.PUBLICCHAT)
-				|| event.getType().equals(ChatMessageType.PRIVATECHATOUT);
+		boolean isPublic = event.getType().equals(ChatMessageType.PUBLICCHAT);
 
-		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName())
-				|| event.getType().equals(ChatMessageType.PRIVATECHATOUT);
+		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
+		ablyManager.shouldShowMessge(cleanedName, cleanedMessage);
 
-		if (isPublicOrPrivate && isLocalPlayerSendingMessage) {
-			ablyManager.tryUpdateMessages(cleanedName, cleanedMessage);
-			ablyManager.publishMessage(cleanedMessage);
+		if (isPublic && isLocalPlayerSendingMessage) {
+			ablyManager.shouldShowMessge(cleanedName, cleanedMessage);
+			ablyManager.publishMessage(cleanedMessage, false, "");
+		} else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
+			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage);
+			try {
+				Thread.sleep(650);
+			} catch (InterruptedException e) {
+				// Handle the exception
+			}
+			ablyManager.publishMessage(cleanedMessage, true, cleanedName);
 		} else {
-			ablyManager.tryUpdateMessages(cleanedName, cleanedMessage);
-
 		}
 
 	}
