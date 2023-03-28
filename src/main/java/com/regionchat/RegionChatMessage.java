@@ -24,16 +24,19 @@
  */
 package com.regionchat;
 
-public class RegionChatMessage
-{
+public class RegionChatMessage {
 	public String username;
 	public String symbol;
 	public String message;
+	public String global;
+	public String to;
 
-	public RegionChatMessage(String username, String symbol, String message)
-	{
+	public RegionChatMessage(String username, String symbol, String message, String global, String to) {
 		this.username = username;
 		this.symbol = symbol;
 		this.message = message;
+		this.global = global;
+		this.to = to;
+
 	}
 }
