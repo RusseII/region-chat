@@ -42,7 +42,7 @@ import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@PluginDescriptor(name = "Ably Region Chat", description = "Talk to others even if they go to another fishing spot!", tags = {
+@PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
 		"chat" })
 public class RegionChatPlugin extends Plugin {
 	@Inject
