@@ -138,7 +138,6 @@ public class AblyManager {
 		}
 
 		RegionChatMessage msg = gson.fromJson((JsonElement) message.data, RegionChatMessage.class);
-
 		String username = msg.username;
 		String receivedMsg = Text.removeTags(msg.message);
 
@@ -198,7 +197,6 @@ public class AblyManager {
 	private void setupAblyInstances() {
 		try {
 			ClientOptions clientOptions = new ClientOptions();
-			// clientOptions.authUrl = "https://runelite-regionchat.herokuapp.com/token";
 			clientOptions.key = "ubLi2Q.kA6NlA:djTnpbYSimiCtMw-5bhaOXKmDB3hd-GWsyyPtZHvh3k";
 			ablyRealtime = new AblyRealtime(clientOptions);
 		} catch (AblyException e) {
@@ -299,6 +297,13 @@ public class AblyManager {
 			try {
 				ablyRegionChannel.unsubscribe();
 				ablyRegionChannel.detach();
+			} catch (AblyException err) {
+				System.err.println(err.getMessage());
+			}
+		}
+
+		if (ablyGlobalChannel != null && ablyGlobalChannel.state == ChannelState.attached) {
+			try {
 				ablyGlobalChannel.unsubscribe();
 				ablyGlobalChannel.detach();
 			} catch (AblyException err) {
