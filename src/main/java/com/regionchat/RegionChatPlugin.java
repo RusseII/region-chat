@@ -30,6 +30,7 @@ import java.util.HashMap;
 import javax.inject.Inject;
 import javax.inject.Named;
 import lombok.Getter;
+import net.runelite.api.events.WorldChanged;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.events.ChatMessage;
@@ -61,13 +62,20 @@ public class RegionChatPlugin extends Plugin {
 	@Override
 	protected void startUp() throws Exception {
 		ablyManager.startConnection();
-		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
 		ablyManager.connectToGlobal();
 	}
 
 	@Override
 	protected void shutDown() throws Exception {
 		ablyManager.closeConnection();
+	}
+
+	@Subscribe
+	public void onWorldChanged(WorldChanged worldChanged) {
+		ablyManager.closeConnection();
+		ablyManager.startConnection();
+		ablyManager.connectToGlobal();
+		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
 	}
 
 	@Subscribe
