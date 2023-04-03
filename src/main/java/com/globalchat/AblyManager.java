@@ -22,7 +22,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.regionchat;
+package com.globalchat;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -68,21 +68,21 @@ public class AblyManager {
 
 	private final Map<String, String> previousMessages = new HashMap<>();
 
-	private final String CHANNEL_NAME_PREFIX = "regionchat";
+	private final String CHANNEL_NAME_PREFIX = "globalchat";
 
 	private boolean changingChannels;
 
 	@Inject
 	ChatMessageManager chatMessageManager;
 
-	private final RegionChatConfig config;
+	private final GlobalChatConfig config;
 
 	private AblyRealtime ablyRealtime;
 	private Channel ablyRegionChannel;
 	private Channel ablyGlobalChannel;
 
 	@Inject
-	public AblyManager(Client client, RegionChatConfig config) {
+	public AblyManager(Client client, GlobalChatConfig config) {
 		this.client = client;
 		this.config = config;
 	}
@@ -137,7 +137,7 @@ public class AblyManager {
 			return;
 		}
 
-		RegionChatMessage msg = gson.fromJson((JsonElement) message.data, RegionChatMessage.class);
+		GlobalChatMessage msg = gson.fromJson((JsonElement) message.data, GlobalChatMessage.class);
 		String username = msg.username;
 		String receivedMsg = Text.removeTags(msg.message);
 		if (!shouldShowMessge(username, receivedMsg, false)) {

@@ -22,7 +22,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.regionchat;
+package com.globalchat;
 
 import com.google.inject.Provides;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ import net.runelite.api.ChatLineBuffer;
 @Slf4j
 @PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
 		"chat" })
-public class RegionChatPlugin extends Plugin {
+public class GlobalChatPlugin extends Plugin {
 	@Inject
 	private AblyManager ablyManager;
 
@@ -108,7 +108,7 @@ public class RegionChatPlugin extends Plugin {
 	}
 
 	@Provides
-	RegionChatConfig provideConfig(ConfigManager configManager) {
-		return configManager.getConfig(RegionChatConfig.class);
+	GlobalChatConfig provideConfig(ConfigManager configManager) {
+		return configManager.getConfig(GlobalChatConfig.class);
 	}
 }

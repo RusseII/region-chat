@@ -22,12 +22,21 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.regionchat;
+package com.globalchat;
 
-import net.runelite.client.config.Config;
-import net.runelite.client.config.ConfigGroup;
+public class GlobalChatMessage {
+	public String username;
+	public String symbol;
+	public String message;
+	public String global;
+	public String to;
 
-@ConfigGroup("regionchat")
-public interface RegionChatConfig extends Config {
+	public GlobalChatMessage(String username, String symbol, String message, String global, String to) {
+		this.username = username;
+		this.symbol = symbol;
+		this.message = message;
+		this.global = global;
+		this.to = to;
 
+	}
 }

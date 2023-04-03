@@ -28,7 +28,7 @@ dependencies {
 	testImplementation group: 'net.runelite', name:'jshell', version: runeLiteVersion
 }
 
-group = 'com.regionchat'
+group = 'com.globalchat'
 version = '1.0.2'
 sourceCompatibility = '1.8'
 
