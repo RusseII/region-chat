@@ -31,6 +31,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import lombok.Getter;
 import net.runelite.api.events.WorldChanged;
+import net.runelite.api.ChatLineBuffer;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.events.ChatMessage;
@@ -40,6 +41,8 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
+
+import net.runelite.api.ChatLineBuffer;
 
 @Slf4j
 @PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
@@ -88,22 +91,20 @@ public class RegionChatPlugin extends Plugin {
 		boolean isPublic = event.getType().equals(ChatMessageType.PUBLICCHAT);
 
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
-		ablyManager.shouldShowMessge(cleanedName, cleanedMessage);
-
 		if (isPublic && isLocalPlayerSendingMessage) {
-			ablyManager.shouldShowMessge(cleanedName, cleanedMessage);
+			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 			ablyManager.publishMessage(cleanedMessage, false, "");
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
-			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage);
-			try {
-				Thread.sleep(650);
-			} catch (InterruptedException e) {
-				// Handle the exception
-			}
+			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
 			ablyManager.publishMessage(cleanedMessage, true, cleanedName);
+		} else if (event.getType().equals(ChatMessageType.PRIVATECHAT)
+				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
+			final ChatLineBuffer lineBuffer = client.getChatLineMap()
+					.get(ChatMessageType.PRIVATECHAT.getType());
+			lineBuffer.removeMessageNode(event.getMessageNode());
 		} else {
+			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 		}
-
 	}
 
 	@Provides
