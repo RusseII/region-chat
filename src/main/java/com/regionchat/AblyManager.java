@@ -140,8 +140,7 @@ public class AblyManager {
 		RegionChatMessage msg = gson.fromJson((JsonElement) message.data, RegionChatMessage.class);
 		String username = msg.username;
 		String receivedMsg = Text.removeTags(msg.message);
-
-		if (!shouldShowMessge(username, receivedMsg)) {
+		if (!shouldShowMessge(username, receivedMsg, false)) {
 			return;
 		}
 
@@ -182,14 +181,16 @@ public class AblyManager {
 
 	}
 
-	public boolean shouldShowMessge(String name, String message) {
+	public boolean shouldShowMessge(String name, String message, Boolean set) {
 		String prevMessage = previousMessages.get(name);
 
 		// If someone is spamming the same message during a session, block it
 		if (message.equals(prevMessage)) {
 			return false;
 		}
-		previousMessages.put(name, message);
+		if (set) {
+			previousMessages.put(name, message);
+		}
 
 		return true;
 	}
