@@ -4,6 +4,8 @@ Ever tried to have a conversation with someone but they have been too far away a
 
 This plugin is for you! This plugin ensures that your chat will reach one another, so long as you're in the same world.
 
+World 491 is the homeworld for this plugin. You will be most likely to run into other plugin users on this world. 
+
 ## How does this work?
 
 This project makes use of [Ably](https://www.ably.com), a realtime messaging and data synchronization platform, in order to communicate between clients. [Channels](https://ably.com/channels) are used to divide up communication between clients. Each channel's name is structured so as to indicate the world, that the channel encapsulates. For example:
