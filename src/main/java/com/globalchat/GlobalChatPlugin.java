@@ -24,18 +24,19 @@
  */
 package com.globalchat;
 
+import net.runelite.client.callback.ClientThread;
+
 import com.google.inject.Provides;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.inject.Inject;
 import javax.inject.Named;
 import lombok.Getter;
+import net.runelite.api.*;
 import net.runelite.api.events.WorldChanged;
-import net.runelite.api.ChatLineBuffer;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -54,6 +55,10 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	private Client client;
 
+	@Inject
+	@Getter
+	private ClientThread clientThread;
+
 	@Getter
 	private final HashMap<String, ArrayList<String>> previousMessages = new HashMap<>();
 
@@ -65,8 +70,7 @@ public class GlobalChatPlugin extends Plugin {
 	@Override
 	protected void startUp() throws Exception {
 		ablyManager.startConnection();
-		ablyManager.connectToGlobal();
-		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
+		ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
 
 	}
 
@@ -79,24 +83,65 @@ public class GlobalChatPlugin extends Plugin {
 	public void onWorldChanged(WorldChanged worldChanged) {
 		ablyManager.closeConnection();
 		ablyManager.startConnection();
-		ablyManager.connectToGlobal();
-		ablyManager.connectToRegion(String.valueOf(client.getWorld()));
+		ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
+	}
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event) {
+		if (event.getGameState() == GameState.LOGGED_IN) {
+			onLoggedInGameState();
+		}
+	}
+
+	private void onLoggedInGameState() {
+		// keep scheduling this task until it returns true (when we have access to a
+		// display name)
+		clientThread.invokeLater(() -> {
+			// we return true in this case as something went wrong and somehow the state
+			// isn't logged in, so we don't
+			// want to keep scheduling this task.
+			if (client.getGameState() != GameState.LOGGED_IN) {
+				return true;
+			}
+
+			final Player player = client.getLocalPlayer();
+
+			// player is null, so we can't get the display name so, return false, which will
+			// schedule
+			// the task on the client thread again.
+			if (player == null) {
+				return false;
+			}
+
+			final String name = player.getName();
+			if (name == null) {
+				return false;
+			}
+
+			if (name.equals("")) {
+				return false;
+			}
+			ablyManager.subscribeToCorrectChannel("p:" + name);
+
+			return true;
+		});
 	}
 
 	@Subscribe
 	public void onChatMessage(ChatMessage event) {
-		String cleanedName = Text.sanitize(event.getName());
 		String cleanedMessage = Text.removeTags(event.getMessage());
+
+		String cleanedName = Text.sanitize(event.getName());
 
 		boolean isPublic = event.getType().equals(ChatMessageType.PUBLICCHAT);
 
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 		if (isPublic && isLocalPlayerSendingMessage) {
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
-			ablyManager.publishMessage(cleanedMessage, false, "");
+			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
-			ablyManager.publishMessage(cleanedMessage, true, cleanedName);
+			ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName, cleanedName);
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHAT)
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
