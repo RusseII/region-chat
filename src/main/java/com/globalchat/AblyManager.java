@@ -90,6 +90,14 @@ public class AblyManager {
 		setupAblyInstances();
 	}
 
+	public void closeSpecificChannel(String channelName) {
+		try {
+			ablyRealtime.channels.get(channelName).detach();
+		} catch (AblyException err) {
+			System.err.println(err.getMessage());
+		}
+	}
+
 	public void closeConnection() {
 		ablyRealtime.close();
 		ablyRealtime = null;
@@ -219,6 +227,22 @@ public class AblyManager {
 
 		}
 
+		else if (msg.type.equals("f") && !username.equals(client.getLocalPlayer().getName())) {
+
+			chatMessageManager.queue(QueuedMessage.builder()
+					.type(ChatMessageType.FRIENDSCHAT)
+					.name(msg.symbol + msg.username).sender(msg.to)
+					.runeLiteFormattedMessage(chatMessageBuilder.build())
+					.build());
+		} else if (msg.type.equals("c") && !username.equals(client.getLocalPlayer().getName())) {
+
+			chatMessageManager.queue(QueuedMessage.builder()
+					.type(ChatMessageType.CLAN_CHAT)
+					.name(msg.symbol + msg.username).sender(msg.to)
+					.runeLiteFormattedMessage(chatMessageBuilder.build())
+					.build());
+		}
+
 	}
 
 	public boolean shouldShowMessge(String name, String message, Boolean set) {
@@ -251,7 +275,6 @@ public class AblyManager {
 	}
 
 	public void subscribeToCorrectChannel(String channelName) {
-		System.out.println("subscribing to " + channelName);
 
 		try {
 			Channel currentChannel = ablyRealtime.channels.get(channelName);

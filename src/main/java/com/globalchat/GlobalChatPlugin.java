@@ -32,18 +32,21 @@ import java.util.HashMap;
 import javax.inject.Inject;
 import javax.inject.Named;
 import lombok.Getter;
+import lombok.Setter;
 import net.runelite.api.*;
 import net.runelite.api.events.WorldChanged;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.ClanChannelChanged;
+import net.runelite.api.events.FriendsChatChanged;
+import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
-
-import net.runelite.api.ChatLineBuffer;
 
 @Slf4j
 @PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
@@ -58,6 +61,18 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	@Getter
 	private ClientThread clientThread;
+
+	@Getter
+	@Setter
+	private String friendsChat;
+
+	@Getter
+	@Setter
+	private String theClanName;
+
+	@Getter
+	@Setter
+	private String theGuesttheClanName;
 
 	@Getter
 	private final HashMap<String, ArrayList<String>> previousMessages = new HashMap<>();
@@ -93,9 +108,23 @@ public class GlobalChatPlugin extends Plugin {
 		}
 	}
 
+	@Subscribe
+	public void onFriendsChatMemberJoined(FriendsChatMemberJoined event) {
+		final FriendsChatMember member = event.getMember();
+		String memberName = member.getName().replace('\u00A0', ' ').trim();
+		String playerName = client.getLocalPlayer().getName().replace('\u00A0', ' ').trim();
+		;
+
+		Boolean isCurrentUser = memberName.equals(playerName);
+
+		if (isCurrentUser) {
+			FriendsChatManager friendsChatManager = client.getFriendsChatManager();
+			friendsChat = friendsChatManager.getOwner();
+			ablyManager.subscribeToCorrectChannel("f:" + friendsChat);
+		}
+	}
+
 	private void onLoggedInGameState() {
-		// keep scheduling this task until it returns true (when we have access to a
-		// display name)
 		clientThread.invokeLater(() -> {
 			// we return true in this case as something went wrong and somehow the state
 			// isn't logged in, so we don't
@@ -128,6 +157,43 @@ public class GlobalChatPlugin extends Plugin {
 	}
 
 	@Subscribe
+	public void onClanChannelChanged(ClanChannelChanged event) {
+		boolean inClanNow = event.getClanChannel() != null;
+		String channelName = inClanNow ? event.getClanChannel().getName() : null;
+		boolean isGuest = event.isGuest();
+
+		if (!inClanNow) {
+			String channelPrefix = isGuest ? "c:" + theGuesttheClanName : "c:" + theClanName;
+			ablyManager.closeSpecificChannel(channelPrefix);
+
+			if (isGuest) {
+				theGuesttheClanName = null;
+			} else {
+				theClanName = null;
+			}
+		} else {
+			String targetChannelName = "c:" + channelName;
+			ablyManager.subscribeToCorrectChannel(targetChannelName);
+
+			if (isGuest) {
+				theGuesttheClanName = channelName;
+			} else {
+				theClanName = channelName;
+			}
+		}
+	}
+
+	@Subscribe
+	public void onFriendsChatChanged(FriendsChatChanged event) {
+		if (!event.isJoined()) {
+			if (friendsChat != null) {
+				ablyManager.closeSpecificChannel("f:" + friendsChat);
+				friendsChat = null;
+			}
+		}
+	}
+
+	@Subscribe
 	public void onChatMessage(ChatMessage event) {
 		String cleanedMessage = Text.removeTags(event.getMessage());
 
@@ -147,6 +213,20 @@ public class GlobalChatPlugin extends Plugin {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.PRIVATECHAT.getType());
 			lineBuffer.removeMessageNode(event.getMessageNode());
+		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && isLocalPlayerSendingMessage) {
+			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
+			ablyManager.publishMessage("f", cleanedMessage, "f:" + friendsChat,
+					client.getFriendsChatManager().getName());
+		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT)
+				&& isLocalPlayerSendingMessage) {
+			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
+			ablyManager.publishMessage("c", cleanedMessage, "c:" + client.getClanChannel().getName(),
+					client.getClanChannel().getName());
+		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT)
+				&& isLocalPlayerSendingMessage) {
+			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
+			ablyManager.publishMessage("c", cleanedMessage, "c:" + client.getGuestClanChannel().getName(),
+					client.getGuestClanChannel().getName());
 		} else {
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 		}
