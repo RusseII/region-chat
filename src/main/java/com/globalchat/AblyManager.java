@@ -107,7 +107,8 @@ public class AblyManager {
 
 		Set<String> spamMessages = new HashSet<>();
 		spamMessages
-				.addAll(Arrays.asList("Eww stinky!", "I will burn with you.", "Burn with me!", "Here fishy fishies!",
+				.addAll(Arrays.asList("Just say neigh to gambling!", "Eww stinky!", "I will burn with you.",
+						"Burn with me!", "Here fishy fishies!",
 						"For Camelot!", "Raarrrrrgggggghhhhhhh", "Taste vengeance!", "Smashing!", "*yawn*"));
 		// Messages from tobMistakeTrackerSpam
 		spamMessages.addAll(Arrays.asList(
