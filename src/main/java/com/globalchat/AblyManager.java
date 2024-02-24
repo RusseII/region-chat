@@ -24,6 +24,9 @@
  */
 package com.globalchat;
 
+import java.util.HashSet;
+import java.util.Arrays;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -37,7 +40,7 @@ import io.ably.lib.types.AblyException;
 import io.ably.lib.types.ClientOptions;
 import io.ably.lib.types.ErrorInfo;
 import io.ably.lib.types.Message;
-
+import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
 import net.runelite.api.ChatMessageType;
@@ -68,8 +71,6 @@ public class AblyManager {
 
 	private final Map<String, String> previousMessages = new HashMap<>();
 
-	private final String CHANNEL_NAME_PREFIX = "globalchat";
-
 	private boolean changingChannels;
 
 	@Inject
@@ -78,8 +79,6 @@ public class AblyManager {
 	private final GlobalChatConfig config;
 
 	private AblyRealtime ablyRealtime;
-	private Channel ablyRegionChannel;
-	private Channel ablyGlobalChannel;
 
 	@Inject
 	public AblyManager(Client client, GlobalChatConfig config) {
@@ -94,39 +93,80 @@ public class AblyManager {
 	public void closeConnection() {
 		ablyRealtime.close();
 		ablyRealtime = null;
-		ablyRegionChannel = null;
-		ablyGlobalChannel = null;
 	}
 
-	public void publishMessage(String message, Boolean global, String to) {
+	public boolean isSpam(String message) {
+
+		Set<String> spamMessages = new HashSet<>();
+		spamMessages.addAll(Arrays.asList("I will burn with you.", "Burn with me!", "Here fishy fishies!",
+				"For Camelot!", "Raarrrrrgggggghhhhhhh", "Taste vengeance!", "Smashing!", "*yawn*"));
+		// Messages from tobMistakeTrackerSpam
+		spamMessages.addAll(Arrays.asList(
+				"I'm planking!", // Note: Only need to add "I'm planking!" once
+				"I'm drowning in Maiden's blood!",
+				"I'm stunned!",
+				"Bye!",
+				"I'm eating cabbages!",
+				"I can't count to four!",
+				"I'm PKing my team!",
+				"I was stuck in a web!",
+				"I'm healing Verzik!"));
+		// Messages from TOAMistakeTrackerSpam
+		spamMessages.addAll(Arrays.asList(
+				"Ah! It burns!",
+				"Embrace Darkness!",
+				"I'm too slow!",
+				"I'm griefing!",
+				"?",
+				"This jug feels a little light...",
+				"I'm drowning in acid!",
+				"I'm on a blood cloud!",
+				"Nihil!",
+				"I'm surfing!",
+				"I'm exploding!",
+				"The swarms are going in!",
+				"I've been hatched!",
+				"I'm fuming!",
+				"The sky is falling!",
+				"I've been corrupted!",
+				"It's venomous!",
+				"Come on and slam!|And welcome to the jam!",
+				"I got rocked!",
+				"They see me rollin'...",
+				"It's raining!",
+				"Who put that there?",
+				"I'm going down!",
+				"I'm disco-ing!",
+				"I'm dancing!",
+				"I'm winded!",
+				"I'm getting bombed!",
+				"I'm in jail!",
+				"What even was that attack?",
+				"I'm tripping!"));
+
+		// Check if the message is in the set
+		return spamMessages.contains(message);
+	}
+
+	public void publishMessage(String t, String message, String channel, String to) {
 		if (client.getLocalPlayer() == null) {
 			return;
 		}
 
-		if (ablyRegionChannel == null && !global) {
-			return;
-		}
-
-		if (ablyGlobalChannel == null && global) {
-			return;
-		}
+		Channel currentChannel = ablyRealtime.channels.get(channel);
 
 		try {
 			JsonObject msg = io.ably.lib.util.JsonUtils.object()
 					.add("symbol", getAccountIcon())
 					.add("username", client.getLocalPlayer().getName())
-					.add("message", message).add("global", global.toString()).add("to", to).toJson();
-			if (global) {
-				ablyGlobalChannel.publish("event", msg);
-			} else {
-				ablyRegionChannel.publish("event", msg);
-			}
+					.add("message", message).add("type", t).add("to", to).toJson();
+			currentChannel.publish("event", msg);
 		} catch (AblyException err) {
 			System.out.println(err.getMessage());
 		}
 	}
 
-	private void handleMessage(Message message) {
+	public void handleMessage(Message message) {
 		if (client.getGameState() == GameState.LOGGED_IN) {
 			handleAblyMessage(message);
 		}
@@ -150,7 +190,7 @@ public class AblyManager {
 		if (username.length() > 12) {
 			return;
 		}
-		if (msg.global.equals("true") && !username.equals(client.getLocalPlayer().getName())
+		if (msg.type.equals("p") && !username.equals(client.getLocalPlayer().getName())
 				&& msg.to.equals(client.getLocalPlayer().getName())) {
 
 			chatMessageManager.queue(QueuedMessage.builder()
@@ -158,7 +198,7 @@ public class AblyManager {
 					.name(msg.symbol + msg.username)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
-		} else if (msg.global.equals("false")) {
+		} else if (msg.type.equals("w")) {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.PUBLICCHAT)
@@ -182,6 +222,11 @@ public class AblyManager {
 	}
 
 	public boolean shouldShowMessge(String name, String message, Boolean set) {
+		if (config.hideSpamMessages()) {
+			if (isSpam(message)) {
+				return false;
+			}
+		}
 		String prevMessage = previousMessages.get(name);
 
 		// If someone is spamming the same message during a session, block it
@@ -205,126 +250,16 @@ public class AblyManager {
 		}
 	}
 
-	public void connectToGlobal() {
-		Boolean global = true;
-		String newChannelName = CHANNEL_NAME_PREFIX + ":" + "global";
-
-		if (changingChannels) {
-			return;
-		}
-
-		if (ablyGlobalChannel != null && ablyGlobalChannel.name.equals(newChannelName)) {
-			if (ablyGlobalChannel.state == ChannelState.detached) {
-				subscribeToChannel(global);
-			}
-
-			return;
-		}
-
-		changingChannels = true;
-
-		if (ablyGlobalChannel == null) {
-			ablyGlobalChannel = ablyRealtime.channels.get(newChannelName);
-			subscribeToChannel(global);
-			return;
-		}
+	public void subscribeToCorrectChannel(String channelName) {
+		System.out.println("subscribing to " + channelName);
 
 		try {
-			ablyGlobalChannel.unsubscribe();
-			ablyGlobalChannel.detach(detatchListener(newChannelName, global));
-		} catch (AblyException err) {
-			changingChannels = false;
-			System.err.println(err.getMessage());
-		}
-	}
-
-	public void connectToRegion(String world) {
-		Boolean global = false;
-		String newChannelName = CHANNEL_NAME_PREFIX + ":" + world + ":" + "global";
-
-		if (changingChannels) {
-			return;
-		}
-
-		if (ablyRegionChannel != null && ablyRegionChannel.name.equals(newChannelName)) {
-			if (ablyRegionChannel.state == ChannelState.detached) {
-				subscribeToChannel(global);
-			}
-
-			return;
-		}
-
-		changingChannels = true;
-
-		if (ablyRegionChannel == null) {
-			ablyRegionChannel = ablyRealtime.channels.get(newChannelName);
-			subscribeToChannel(global);
-			return;
-		}
-
-		try {
-			ablyRegionChannel.unsubscribe();
-			ablyRegionChannel.detach(detatchListener(newChannelName, global));
-		} catch (AblyException err) {
-			changingChannels = false;
-			System.err.println(err.getMessage());
-		}
-	}
-
-	public CompletionListener detatchListener(String newChannelName, Boolean global) {
-		return new CompletionListener() {
-			@Override
-			public void onSuccess() {
-				if (global) {
-					ablyGlobalChannel = ablyRealtime.channels.get(newChannelName);
-
-				} else {
-					ablyRegionChannel = ablyRealtime.channels.get(newChannelName);
-
-				}
-				subscribeToChannel(global);
-			}
-
-			@Override
-			public void onError(ErrorInfo reason) {
-				System.err.println(reason.message);
-				changingChannels = false;
-			}
-		};
-	}
-
-	public void disconnectFromRegions() {
-		if (ablyRegionChannel != null && ablyRegionChannel.state == ChannelState.attached) {
-			try {
-				ablyRegionChannel.unsubscribe();
-				ablyRegionChannel.detach();
-			} catch (AblyException err) {
-				System.err.println(err.getMessage());
-			}
-		}
-
-		if (ablyGlobalChannel != null && ablyGlobalChannel.state == ChannelState.attached) {
-			try {
-				ablyGlobalChannel.unsubscribe();
-				ablyGlobalChannel.detach();
-			} catch (AblyException err) {
-				System.err.println(err.getMessage());
-			}
-		}
-	}
-
-	private void subscribeToChannel(Boolean global) {
-		try {
-			if (global) {
-				ablyGlobalChannel.subscribe(this::handleMessage);
-			} else {
-				ablyRegionChannel.subscribe(this::handleMessage);
-			}
+			Channel currentChannel = ablyRealtime.channels.get(channelName);
+			currentChannel.subscribe(this::handleMessage);
 		} catch (AblyException err) {
 			System.err.println(err.getMessage());
 		}
 
-		changingChannels = false;
 	}
 
 	private String getAccountIcon() {

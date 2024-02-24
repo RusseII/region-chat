@@ -31,11 +31,13 @@ public class GlobalChatMessage {
 	public String global;
 	public String to;
 
-	public GlobalChatMessage(String username, String symbol, String message, String global, String to) {
+	public String type;
+
+	public GlobalChatMessage(String username, String symbol, String message, String type, String to) {
 		this.username = username;
 		this.symbol = symbol;
 		this.message = message;
-		this.global = global;
+		this.type = type;
 		this.to = to;
 
 	}

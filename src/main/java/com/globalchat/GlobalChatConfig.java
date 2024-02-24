@@ -26,8 +26,17 @@ package com.globalchat;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
-
+import net.runelite.client.config.ConfigItem;
 @ConfigGroup("globalchat")
 public interface GlobalChatConfig extends Config {
+    @ConfigItem(
+            keyName = "hideSpamMessages",
+            name = "Filter Out Spam",
+            description = "Hides spam messages from mistake plugins, vengeance, and some other sources",
+            position = 1
+    )
+    default boolean hideSpamMessages() {
+        return true;
+    }
 
 }
