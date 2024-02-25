@@ -266,15 +266,18 @@ public void onScriptCallbackEvent(ScriptCallbackEvent event) {
 	final MessageNode messageNode = client.getMessages().get(messageId);
 	final String name = messageNode.getName();
 	String cleanedName = Text.sanitize(name);
+	boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 
-    if (ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT && ablyManager.isUnderCbLevel(cleanedName)) {
+	boolean shouldConsiderHiding = !isLocalPlayerSendingMessage && ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT;
+
+    if (shouldConsiderHiding && ablyManager.isUnderCbLevel(cleanedName)) {
 
 		intStack[intStackSize - 3] = 0; 
 
 		filteredMessageIds.put(messageId, true);
 
     }
-	if (ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT && filteredMessageIds.containsKey(messageId)) {
+	if (shouldConsiderHiding && filteredMessageIds.containsKey(messageId)) {
 
 		intStack[intStackSize - 3] = 0; 
 	}
@@ -284,10 +287,11 @@ public void onScriptCallbackEvent(ScriptCallbackEvent event) {
 public void onOverheadTextChanged(OverheadTextChanged event)
 	{
 		if (!(event.getActor() instanceof Player) || event.getActor().getName() == null) return;
-        String name = Text.sanitize(event.getActor().getName());
+        String cleanedName = Text.sanitize(event.getActor().getName());
+		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
+
 	
-	
-		if (ablyManager.isUnderCbLevel(name))
+		if (!isLocalPlayerSendingMessage && ablyManager.isUnderCbLevel(cleanedName))
 		{
 			event.getActor().setOverheadText("");
 		}
