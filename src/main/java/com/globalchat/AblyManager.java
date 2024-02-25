@@ -103,6 +103,17 @@ public class AblyManager {
 		ablyRealtime = null;
 	}
 
+	public boolean isUnderCbLevel(String username) {
+		String cleanedName = Text.sanitize(username);
+
+		for (Player player : client.getPlayers()) {
+			if (player != null && player.getName() != null && cleanedName.equals(player.getName())) {
+				return player.getCombatLevel() < config.filterOutFromBelowCblvl();
+			}
+		}
+		return false; // If no matching player is found, return false.
+	}
+
 	public boolean isSpam(String message) {
 
 		Set<String> spamMessages = new HashSet<>();
@@ -193,6 +204,9 @@ public class AblyManager {
 		if (!shouldShowMessge(username, receivedMsg, false)) {
 			return;
 		}
+		if (!shouldShowCurrentMessage(receivedMsg, username)) {
+			return;
+		}
 
 		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
 				.append(receivedMsg);
@@ -247,12 +261,21 @@ public class AblyManager {
 
 	}
 
-	public boolean shouldShowMessge(String name, String message, Boolean set) {
+	public boolean shouldShowCurrentMessage(String message, String name) {
 		if (config.hideSpamMessages()) {
 			if (isSpam(message)) {
 				return false;
 			}
 		}
+
+		if (isUnderCbLevel(name)) {
+			return false;
+		}
+		return true;
+	}
+
+	public boolean shouldShowMessge(String name, String message, Boolean set) {
+		
 		String prevMessage = previousMessages.get(name);
 
 		// If someone is spamming the same message during a session, block it

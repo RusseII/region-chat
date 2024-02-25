@@ -27,6 +27,9 @@ package com.globalchat;
 import net.runelite.client.callback.ClientThread;
 
 import com.google.inject.Provides;
+
+import io.ably.lib.types.Callback.Map;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.inject.Inject;
@@ -42,6 +45,8 @@ import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.OverheadTextChanged;
+import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -69,6 +74,16 @@ public class GlobalChatPlugin extends Plugin {
 	@Getter
 	@Setter
 	private String theClanName;
+
+	@Getter
+	private final HashMap<Integer, Boolean> filteredMessageIds = new HashMap<>();
+
+	
+	public static final int CYCLES_PER_GAME_TICK = Constants.GAME_TICK_LENGTH / Constants.CLIENT_TICK_LENGTH;
+
+
+    private static final int OVERHEAD_TEXT_TICK_TIMEOUT = 5;
+    private static final int CYCLES_FOR_OVERHEAD_TEXT = OVERHEAD_TEXT_TICK_TIMEOUT * CYCLES_PER_GAME_TICK;
 
 	@Getter
 	@Setter
@@ -230,6 +245,54 @@ public class GlobalChatPlugin extends Plugin {
 		} else {
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 		}
+	}
+
+@Subscribe
+public void onScriptCallbackEvent(ScriptCallbackEvent event) {
+    if (!"chatFilterCheck".equals(event.getEventName())) {
+        return;
+    }
+
+    int[] intStack = client.getIntStack();
+    int intStackSize = client.getIntStackSize();
+    String[] stringStack = client.getStringStack();
+    int stringStackSize = client.getStringStackSize();
+
+    // Extract the message type and message content from the event.
+    final int messageType = intStack[intStackSize - 2];
+	final int messageId = intStack[intStackSize - 1];
+    String message = stringStack[stringStackSize - 1];
+
+	final MessageNode messageNode = client.getMessages().get(messageId);
+	final String name = messageNode.getName();
+	String cleanedName = Text.sanitize(name);
+
+    if (ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT && ablyManager.isUnderCbLevel(cleanedName)) {
+
+		intStack[intStackSize - 3] = 0; 
+
+		filteredMessageIds.put(messageId, true);
+
+    }
+	if (ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT && filteredMessageIds.containsKey(messageId)) {
+
+		intStack[intStackSize - 3] = 0; 
+	}
+}
+
+@Subscribe(priority = -2) // conflicts with chat filter plugin without this priority
+public void onOverheadTextChanged(OverheadTextChanged event)
+	{
+		if (!(event.getActor() instanceof Player) || event.getActor().getName() == null) return;
+        String name = Text.sanitize(event.getActor().getName());
+	
+	
+		if (ablyManager.isUnderCbLevel(name))
+		{
+			event.getActor().setOverheadText("");
+		}
+	
+
 	}
 
 	@Provides
