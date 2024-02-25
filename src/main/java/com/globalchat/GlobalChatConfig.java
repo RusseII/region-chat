@@ -27,16 +27,30 @@ package com.globalchat;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.Range;
 @ConfigGroup("globalchat")
 public interface GlobalChatConfig extends Config {
     @ConfigItem(
             keyName = "hideSpamMessages",
-            name = "Filter Out Spam",
+            name = "Hide mistake plugin msgs",
             description = "Hides spam messages from mistake plugins, vengeance, and some other sources",
             position = 1
     )
     default boolean hideSpamMessages() {
         return true;
     }
+    @ConfigItem(
+        keyName = "filterOutFromBelowCblvl",
+        name = "Hide Msgs < CB Level",
+        description = "This hides all messages from users below the specified combat level. It's usedful for blocking the low level spam bots",
+        position = 2
+)
+@Range(
+    min = 3,
+    max = 126
+)
+default int filterOutFromBelowCblvl() {
+    return 4;
+}
 
 }
