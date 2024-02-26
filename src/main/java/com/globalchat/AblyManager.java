@@ -256,7 +256,7 @@ public class AblyManager {
 		if (!shouldShowCurrentMessage(receivedMsg, username)) {
 			return;
 		}
-		String symbol = "<img=19>" + msg.symbol;
+		String symbol = "<img=19> " + msg.symbol;
 
 
 		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
