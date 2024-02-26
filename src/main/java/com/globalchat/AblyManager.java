@@ -221,6 +221,7 @@ public class AblyManager {
 					.add("message", message).add("type", t).add("to", to).toJson();
 			currentChannel.publish("event", msg);
 		} catch (AblyException err) {
+			log.error("error", err);
 		}
 	}
 
