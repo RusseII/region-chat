@@ -381,7 +381,7 @@ public class GlobalChatPlugin extends Plugin {
 			if (member.clientId.equals(playerName)) {
 				String newTarget = oldTarget;
 
-				newTarget = "<img=60>" + newTarget;
+				newTarget = "<img=19>" + newTarget;
 
 
 				return newTarget;
