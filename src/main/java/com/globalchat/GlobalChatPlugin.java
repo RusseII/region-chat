@@ -116,7 +116,6 @@ public class GlobalChatPlugin extends Plugin {
 	@Override
 	protected void startUp() throws Exception {
 		ablyManager.startConnection();
-		ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
 
 	}
 
@@ -129,7 +128,6 @@ public class GlobalChatPlugin extends Plugin {
 	public void onWorldChanged(WorldChanged worldChanged) {
 		ablyManager.closeConnection();
 		ablyManager.startConnection();
-		ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
 	}
 
 	@Subscribe
@@ -183,6 +181,7 @@ public class GlobalChatPlugin extends Plugin {
 				return false;
 			}
 			ablyManager.subscribeToCorrectChannel("p:" + name);
+			ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
 			ablyManager.connectPress();
 			return true;
 		});

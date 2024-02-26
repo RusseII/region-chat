@@ -39,7 +39,6 @@ import io.ably.lib.realtime.CompletionListener;
 import io.ably.lib.realtime.Presence;
 import io.ably.lib.types.AblyException;
 import io.ably.lib.types.ClientOptions;
-import io.ably.lib.types.ErrorInfo;
 import io.ably.lib.types.Message;
 import io.ably.lib.types.PresenceMessage;
 
@@ -106,7 +105,7 @@ public class AblyManager {
 		try {
 			ablyRealtime.channels.get(channelName).detach();
 		} catch (AblyException err) {
-			System.err.println(err.getMessage());
+			log.error("error", err);
 		}
 	}
 
@@ -222,7 +221,6 @@ public class AblyManager {
 					.add("message", message).add("type", t).add("to", to).toJson();
 			currentChannel.publish("event", msg);
 		} catch (AblyException err) {
-			System.out.println(err.getMessage());
 		}
 	}
 
@@ -237,13 +235,9 @@ public class AblyManager {
 		try {
 			Channel currentChannel = ablyRealtime.channels.get("w:"+String.valueOf(client.getWorld()));
 			members = currentChannel.presence.get(false);
-			for (PresenceMessage member : members) {
-			}
 		}
 
 		catch (AblyException e) {
-			System.out.println(e.getMessage());
-			e.printStackTrace();
 		}
 	}
 
@@ -331,7 +325,7 @@ public class AblyManager {
 	}
 
 	public boolean shouldShowMessge(String name, String message, Boolean set) {
-		
+
 		String prevMessage = previousMessages.get(name);
 
 		// If someone is spamming the same message during a session, block it
@@ -356,15 +350,18 @@ public class AblyManager {
 	}
 
 	public void connectPress() {
+		String world = String.valueOf(client.getWorld());
+		if (client.getLocalPlayer() == null) {
+			return;
+		}
 		try {
-			Channel currentChannel = ablyRealtime.channels.get("w:" + String.valueOf(client.getWorld()));
+			Channel currentChannel = ablyRealtime.channels.get("w:" + world);
 			String name = Text.sanitize(client.getLocalPlayer().getName());
-			System.out.println("name: " + name);
-			currentChannel.presence.subscribe(this::meowHiss);
-			currentChannel.presence.enterClient(name);
+			 currentChannel.presence.subscribe(this::meowHiss);
+			 currentChannel.presence.enterClient(name);
 		}
 		catch (AblyException err) {
-			System.err.println("ouch" + err.getMessage());
+			log.error("error", err);
 		}
 	}
 	public Channel subscribeToCorrectChannel(String channelName) {
@@ -375,7 +372,7 @@ public class AblyManager {
 			currentChannel.subscribe(this::handleMessage);
 			return currentChannel;
 		} catch (AblyException err) {
-			System.err.println(err.getMessage());
+			log.error("error", err);
 		}
 		return null;
 
