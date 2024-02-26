@@ -91,6 +91,7 @@ public class GlobalChatPlugin extends Plugin {
 	@Setter
 	private String theClanName;
 
+
 	@Getter
 	private final HashMap<Integer, Boolean> filteredMessageIds = new HashMap<>();
 
@@ -265,10 +266,9 @@ public class GlobalChatPlugin extends Plugin {
 
 	@Subscribe
 	public void onScriptCallbackEvent(ScriptCallbackEvent event) {
-		if (!"chatFilterCheck".equals(event.getEventName())) {
-			return;
-		}
 
+		if ("chatFilterCheck".equals(event.getEventName())) {
+			
 		int[] intStack = client.getIntStack();
 		int intStackSize = client.getIntStackSize();
 		String[] stringStack = client.getStringStack();
@@ -297,6 +297,23 @@ public class GlobalChatPlugin extends Plugin {
 
 			intStack[intStackSize - 3] = 0;
 		}
+
+		}
+
+		if ("friendsChatSetText".equals(event.getEventName())) {
+			String[] stringStack = client.getStringStack();
+			int stringStackSize = client.getStringStackSize();
+			final String rsn = stringStack[stringStackSize - 1];
+			final String sanitized = Text.toJagexName(Text.removeTags(rsn));
+			PresenceMessage[] members = ablyManager.members;
+			for (PresenceMessage member : members) { // Corrected variable names and types
+				if (member.clientId.equals(sanitized)) {
+					stringStack[stringStackSize - 1] = rsn + " <img=19>";
+					break;
+				}
+			}
+		}
+
 	}
 
 	@Subscribe(priority = -2) // conflicts with chat filter plugin without this priority
