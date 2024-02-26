@@ -36,13 +36,19 @@ import io.ably.lib.realtime.AblyRealtime;
 import io.ably.lib.realtime.Channel;
 import io.ably.lib.realtime.ChannelState;
 import io.ably.lib.realtime.CompletionListener;
+import io.ably.lib.realtime.Presence;
 import io.ably.lib.types.AblyException;
 import io.ably.lib.types.ClientOptions;
 import io.ably.lib.types.ErrorInfo;
 import io.ably.lib.types.Message;
+import io.ably.lib.types.PresenceMessage;
+
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
+
+import lombok.Getter;
+import lombok.Setter;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -69,9 +75,15 @@ public class AblyManager {
 	@Inject
 	Gson gson;
 
+	@Getter
+	@Setter
+	public PresenceMessage[] members;
+
 	private final Map<String, String> previousMessages = new HashMap<>();
 
 	private boolean changingChannels;
+
+
 
 	@Inject
 	ChatMessageManager chatMessageManager;
@@ -220,6 +232,21 @@ public class AblyManager {
 		}
 	}
 
+	public void meowHiss(PresenceMessage message) {
+
+		try {
+			Channel currentChannel = ablyRealtime.channels.get("w:"+String.valueOf(client.getWorld()));
+			members = currentChannel.presence.get(false);
+			for (PresenceMessage member : members) {
+			}
+		}
+
+		catch (AblyException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+	}
+
 	private void handleAblyMessage(Message message) {
 		if (client.getGameState() != GameState.LOGGED_IN) {
 			return;
@@ -234,6 +261,8 @@ public class AblyManager {
 		if (!shouldShowCurrentMessage(receivedMsg, username)) {
 			return;
 		}
+		String symbol = "<img=60>" + msg.symbol;
+
 
 		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
 				.append(receivedMsg);
@@ -246,14 +275,14 @@ public class AblyManager {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.PRIVATECHAT)
-					.name(msg.symbol + msg.username)
+					.name(symbol + msg.username)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 		} else if (msg.type.equals("w")) {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.PUBLICCHAT)
-					.name(msg.symbol + msg.username)
+					.name(symbol + msg.username)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 
@@ -274,14 +303,14 @@ public class AblyManager {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.FRIENDSCHAT)
-					.name(msg.symbol + msg.username).sender(msg.to)
+					.name(symbol + msg.username).sender(msg.to)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 		} else if (msg.type.equals("c") && !username.equals(client.getLocalPlayer().getName())) {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.CLAN_CHAT)
-					.name(msg.symbol + msg.username).sender(msg.to)
+					.name(symbol + msg.username).sender(msg.to)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 		}
@@ -326,14 +355,29 @@ public class AblyManager {
 		}
 	}
 
-	public void subscribeToCorrectChannel(String channelName) {
+	public void connectPress() {
+		try {
+			Channel currentChannel = ablyRealtime.channels.get("w:" + String.valueOf(client.getWorld()));
+			String name = Text.sanitize(client.getLocalPlayer().getName());
+			System.out.println("name: " + name);
+			currentChannel.presence.subscribe(this::meowHiss);
+			currentChannel.presence.enterClient(name);
+		}
+		catch (AblyException err) {
+			System.err.println("ouch" + err.getMessage());
+		}
+	}
+	public Channel subscribeToCorrectChannel(String channelName) {
+
 
 		try {
 			Channel currentChannel = ablyRealtime.channels.get(channelName);
 			currentChannel.subscribe(this::handleMessage);
+			return currentChannel;
 		} catch (AblyException err) {
 			System.err.println(err.getMessage());
 		}
+		return null;
 
 	}
 
