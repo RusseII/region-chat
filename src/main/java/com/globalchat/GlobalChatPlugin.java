@@ -24,6 +24,7 @@
  */
 package com.globalchat;
 
+import io.ably.lib.types.PresenceMessage;
 import net.runelite.client.callback.ClientThread;
 
 import com.google.inject.Provides;
@@ -40,6 +41,7 @@ import net.runelite.api.*;
 import net.runelite.api.events.WorldChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ClanChannelChanged;
+import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.FriendsChatChanged;
 import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
@@ -50,8 +52,22 @@ import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
+import static net.runelite.api.MenuAction.ITEM_USE_ON_PLAYER;
+import static net.runelite.api.MenuAction.PLAYER_EIGHTH_OPTION;
+import static net.runelite.api.MenuAction.PLAYER_FIFTH_OPTION;
+import static net.runelite.api.MenuAction.PLAYER_FIRST_OPTION;
+import static net.runelite.api.MenuAction.PLAYER_FOURTH_OPTION;
+import static net.runelite.api.MenuAction.PLAYER_SECOND_OPTION;
+import static net.runelite.api.MenuAction.PLAYER_SEVENTH_OPTION;
+import static net.runelite.api.MenuAction.PLAYER_SIXTH_OPTION;
+import static net.runelite.api.MenuAction.PLAYER_THIRD_OPTION;
+import static net.runelite.api.MenuAction.RUNELITE_PLAYER;
+import static net.runelite.api.MenuAction.WALK;
+import static net.runelite.api.MenuAction.WIDGET_TARGET_ON_PLAYER;
+
 
 @Slf4j
 @PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
@@ -78,12 +94,12 @@ public class GlobalChatPlugin extends Plugin {
 	@Getter
 	private final HashMap<Integer, Boolean> filteredMessageIds = new HashMap<>();
 
-	
+
 	public static final int CYCLES_PER_GAME_TICK = Constants.GAME_TICK_LENGTH / Constants.CLIENT_TICK_LENGTH;
 
 
-    private static final int OVERHEAD_TEXT_TICK_TIMEOUT = 5;
-    private static final int CYCLES_FOR_OVERHEAD_TEXT = OVERHEAD_TEXT_TICK_TIMEOUT * CYCLES_PER_GAME_TICK;
+	private static final int OVERHEAD_TEXT_TICK_TIMEOUT = 5;
+	private static final int CYCLES_FOR_OVERHEAD_TEXT = OVERHEAD_TEXT_TICK_TIMEOUT * CYCLES_PER_GAME_TICK;
 
 	@Getter
 	@Setter
@@ -122,6 +138,7 @@ public class GlobalChatPlugin extends Plugin {
 			onLoggedInGameState();
 		}
 	}
+
 
 	@Subscribe
 	public void onFriendsChatMemberJoined(FriendsChatMemberJoined event) {
@@ -166,7 +183,7 @@ public class GlobalChatPlugin extends Plugin {
 				return false;
 			}
 			ablyManager.subscribeToCorrectChannel("p:" + name);
-
+			ablyManager.connectPress();
 			return true;
 		});
 	}
@@ -247,55 +264,55 @@ public class GlobalChatPlugin extends Plugin {
 		}
 	}
 
-@Subscribe
-public void onScriptCallbackEvent(ScriptCallbackEvent event) {
-    if (!"chatFilterCheck".equals(event.getEventName())) {
-        return;
-    }
+	@Subscribe
+	public void onScriptCallbackEvent(ScriptCallbackEvent event) {
+		if (!"chatFilterCheck".equals(event.getEventName())) {
+			return;
+		}
 
-    int[] intStack = client.getIntStack();
-    int intStackSize = client.getIntStackSize();
-    String[] stringStack = client.getStringStack();
-    int stringStackSize = client.getStringStackSize();
+		int[] intStack = client.getIntStack();
+		int intStackSize = client.getIntStackSize();
+		String[] stringStack = client.getStringStack();
+		int stringStackSize = client.getStringStackSize();
 
-    // Extract the message type and message content from the event.
-    final int messageType = intStack[intStackSize - 2];
-	final int messageId = intStack[intStackSize - 1];
-    String message = stringStack[stringStackSize - 1];
+		// Extract the message type and message content from the event.
+		final int messageType = intStack[intStackSize - 2];
+		final int messageId = intStack[intStackSize - 1];
+		String message = stringStack[stringStackSize - 1];
 
-	final MessageNode messageNode = client.getMessages().get(messageId);
-	final String name = messageNode.getName();
-	String cleanedName = Text.sanitize(name);
-	boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
-
-	boolean shouldConsiderHiding = !isLocalPlayerSendingMessage && ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT;
-
-    if (shouldConsiderHiding && ablyManager.isUnderCbLevel(cleanedName)) {
-
-		intStack[intStackSize - 3] = 0; 
-
-		filteredMessageIds.put(messageId, true);
-
-    }
-	if (shouldConsiderHiding && filteredMessageIds.containsKey(messageId)) {
-
-		intStack[intStackSize - 3] = 0; 
-	}
-}
-
-@Subscribe(priority = -2) // conflicts with chat filter plugin without this priority
-public void onOverheadTextChanged(OverheadTextChanged event)
-	{
-		if (!(event.getActor() instanceof Player) || event.getActor().getName() == null) return;
-        String cleanedName = Text.sanitize(event.getActor().getName());
+		final MessageNode messageNode = client.getMessages().get(messageId);
+		final String name = messageNode.getName();
+		String cleanedName = Text.sanitize(name);
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 
-	
+		boolean shouldConsiderHiding = !isLocalPlayerSendingMessage && ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT;
+
+		if (shouldConsiderHiding && ablyManager.isUnderCbLevel(cleanedName)) {
+
+			intStack[intStackSize - 3] = 0;
+
+			filteredMessageIds.put(messageId, true);
+
+		}
+		if (shouldConsiderHiding && filteredMessageIds.containsKey(messageId)) {
+
+			intStack[intStackSize - 3] = 0;
+		}
+	}
+
+	@Subscribe(priority = -2) // conflicts with chat filter plugin without this priority
+	public void onOverheadTextChanged(OverheadTextChanged event)
+	{
+		if (!(event.getActor() instanceof Player) || event.getActor().getName() == null) return;
+		String cleanedName = Text.sanitize(event.getActor().getName());
+		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
+
+
 		if (!isLocalPlayerSendingMessage && ablyManager.isUnderCbLevel(cleanedName))
 		{
 			event.getActor().setOverheadText("");
 		}
-	
+
 
 	}
 
@@ -303,4 +320,77 @@ public void onOverheadTextChanged(OverheadTextChanged event)
 	GlobalChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(GlobalChatConfig.class);
 	}
+
+
+	@Subscribe(priority = -2)
+	public void onClientTick(ClientTick clientTick) {
+		if (client.isMenuOpen()) {
+			return;
+		}
+
+		MenuEntry[] menuEntries = client.getMenuEntries();
+
+		for (MenuEntry entry : menuEntries) {
+			MenuAction type = entry.getType();
+
+			if (type == WALK
+					|| type == WIDGET_TARGET_ON_PLAYER
+					|| type == ITEM_USE_ON_PLAYER
+					|| type == PLAYER_FIRST_OPTION
+					|| type == PLAYER_SECOND_OPTION
+					|| type == PLAYER_THIRD_OPTION
+					|| type == PLAYER_FOURTH_OPTION
+					|| type == PLAYER_FIFTH_OPTION
+					|| type == PLAYER_SIXTH_OPTION
+					|| type == PLAYER_SEVENTH_OPTION
+					|| type == PLAYER_EIGHTH_OPTION
+					|| type == RUNELITE_PLAYER) {
+				Player[] players = client.getCachedPlayers();
+				Player player = null;
+
+				int identifier = entry.getIdentifier();
+
+				// 'Walk here' identifiers are offset by 1 because the default
+				// identifier for this option is 0, which is also a player index.
+				if (type == WALK) {
+					identifier--;
+				}
+
+				if (identifier >= 0 && identifier < players.length) {
+					player = players[identifier];
+
+				}
+
+				if (player == null) {
+					return;
+				}
+
+
+
+				String oldTarget = entry.getTarget();
+				String newTarget = decorateTarget(oldTarget, player.getName());
+
+				entry.setTarget(newTarget);
+			}
+
+		}
+	}
+	public String decorateTarget(String oldTarget, String playerName)
+	{
+		PresenceMessage[] members = ablyManager.members;
+		for (PresenceMessage member : members) { // Corrected variable names and types
+			if (member.clientId.equals(playerName)) {
+				String newTarget = oldTarget;
+
+				newTarget = "<img=60>" + newTarget;
+
+
+				return newTarget;
+			}
+		}
+	return oldTarget;
+	}
+
+
+
 }
