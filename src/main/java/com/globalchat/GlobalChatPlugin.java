@@ -172,7 +172,6 @@ public class GlobalChatPlugin extends Plugin {
 			if (player == null) {
 				return false;
 			}
-
 			final String name = player.getName();
 			if (name == null) {
 				return false;
@@ -306,10 +305,13 @@ public class GlobalChatPlugin extends Plugin {
 			final String rsn = stringStack[stringStackSize - 1];
 			final String sanitized = Text.toJagexName(Text.removeTags(rsn));
 			PresenceMessage[] members = ablyManager.members;
+
 			for (PresenceMessage member : members) { // Corrected variable names and types
 				if (member.clientId.equals(sanitized)) {
-					stringStack[stringStackSize - 1] = rsn + " <img=19>";
-					break;
+					Friend friend = client.getFriendContainer().findByName(rsn);
+					if (friend.getWorld() > 0) {
+						stringStack[stringStackSize - 1] = rsn + " <img=19>";
+					}
 				}
 			}
 		}
