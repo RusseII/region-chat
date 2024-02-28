@@ -248,7 +248,7 @@ public class AblyManager {
 		}
 
 		GlobalChatMessage msg = gson.fromJson((JsonElement) message.data, GlobalChatMessage.class);
-		String username = msg.username;
+		String username = Text.sanitize(msg.username);
 		String receivedMsg = Text.removeTags(msg.message);
 		if (!shouldShowMessge(username, receivedMsg, false)) {
 			return;
@@ -326,15 +326,17 @@ public class AblyManager {
 	}
 
 	public boolean shouldShowMessge(String name, String message, Boolean set) {
+		final String sanitizedName = Text.toJagexName(Text.removeTags(name));
 
-		String prevMessage = previousMessages.get(name);
+		String prevMessage = previousMessages.get(sanitizedName);
+		// System.out.println(prevMessage+ " " +  message + " " + sanitizedName);
 
 		// If someone is spamming the same message during a session, block it
 		if (message.equals(prevMessage)) {
 			return false;
 		}
 		if (set) {
-			previousMessages.put(name, message);
+			previousMessages.put(sanitizedName, message);
 		}
 
 		return true;
