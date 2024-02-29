@@ -333,7 +333,6 @@ public class AblyManager {
 		final String sanitizedName = Text.toJagexName(Text.removeTags(name));
 
 		String prevMessage = previousMessages.get(sanitizedName);
-		 System.out.println(prevMessage+ " " +  message + " " + sanitizedName);
 
 		// If someone is spamming the same message during a session, block it
 		if (message.equals(prevMessage)) {
