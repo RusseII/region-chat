@@ -256,7 +256,11 @@ public class AblyManager {
 		if (!shouldShowCurrentMessage(receivedMsg, username)) {
 			return;
 		}
-		String symbol = "<img=19> " + msg.symbol;
+		String symbol =  msg.symbol;
+
+		if (msg.type.equals("w")) {
+			symbol = "<img=19>" + msg.symbol;
+		}
 
 
 		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
@@ -329,7 +333,7 @@ public class AblyManager {
 		final String sanitizedName = Text.toJagexName(Text.removeTags(name));
 
 		String prevMessage = previousMessages.get(sanitizedName);
-		// System.out.println(prevMessage+ " " +  message + " " + sanitizedName);
+		 System.out.println(prevMessage+ " " +  message + " " + sanitizedName);
 
 		// If someone is spamming the same message during a session, block it
 		if (message.equals(prevMessage)) {
