@@ -259,7 +259,7 @@ public class AblyManager {
 		String symbol =  msg.symbol;
 
 		if (msg.type.equals("w")) {
-			symbol = "<img=19>" + msg.symbol;
+			symbol = "<img=19> " + msg.symbol;
 		}
 
 
