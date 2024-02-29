@@ -244,8 +244,24 @@ public class GlobalChatPlugin extends Plugin {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.PRIVATECHAT.getType());
 			lineBuffer.removeMessageNode(event.getMessageNode());
+				} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && !isLocalPlayerSendingMessage 
+				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
+			final ChatLineBuffer lineBuffer = client.getChatLineMap()
+					.get(ChatMessageType.FRIENDSCHAT.getType());
+			lineBuffer.removeMessageNode(event.getMessageNode()); }
+			else if (event.getType().equals(ChatMessageType.CLAN_CHAT) && !isLocalPlayerSendingMessage
+					&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
+			final ChatLineBuffer lineBuffer = client.getChatLineMap()
+					.get(ChatMessageType.CLAN_CHAT.getType());
+			lineBuffer.removeMessageNode(event.getMessageNode());
+		}
+		else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT) && !isLocalPlayerSendingMessage
+				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
+			final ChatLineBuffer lineBuffer = client.getChatLineMap()
+					.get(ChatMessageType.CLAN_GUEST_CHAT.getType());
+			lineBuffer.removeMessageNode(event.getMessageNode());
 		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && isLocalPlayerSendingMessage) {
-			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
+			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 			ablyManager.publishMessage("f", cleanedMessage, "f:" + friendsChat,
 					client.getFriendsChatManager().getName());
 		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT)
