@@ -136,6 +136,9 @@ public class GlobalChatPlugin extends Plugin {
 		if (event.getGameState() == GameState.LOGGED_IN) {
 			onLoggedInGameState();
 		}
+		if (event.getGameState() == GameState.LOGIN_SCREEN) {
+			onLoggedOut();
+		}
 	}
 
 
@@ -188,6 +191,23 @@ public class GlobalChatPlugin extends Plugin {
 			return true;
 		});
 	}
+
+	private void onLoggedOut() {
+		clientThread.invokeLater(() -> {
+			// we return true in this case as something went wrong and somehow the state
+			// isn't logged in, so we don't
+			// want to keep scheduling this task.
+			if (client.getGameState() != GameState.LOGIN_SCREEN) {
+				return true;
+			}
+
+			ablyManager.closeConnection();
+			ablyManager.startConnection();
+
+			return true;
+		});
+	}
+
 
 	@Subscribe
 	public void onClanChannelChanged(ClanChannelChanged event) {

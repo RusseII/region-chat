@@ -333,6 +333,7 @@ public class AblyManager {
 		return true;
 	}
 
+
 	public boolean shouldShowMessge(String name, String message, Boolean set) {
 		final String sanitizedName = Text.toJagexName(Text.removeTags(name));
 
