@@ -180,9 +180,11 @@ public class GlobalChatPlugin extends Plugin {
 			if (name.equals("")) {
 				return false;
 			}
+			String sanitizedName = Text.sanitize(name);
 			ablyManager.subscribeToCorrectChannel("p:" + name);
 			ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
-			ablyManager.connectPress();
+			ablyManager.connectPress(sanitizedName);
+
 			return true;
 		});
 	}
@@ -235,6 +237,7 @@ public class GlobalChatPlugin extends Plugin {
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 		if (isPublic && isLocalPlayerSendingMessage) {
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
+
 			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
@@ -275,6 +278,7 @@ public class GlobalChatPlugin extends Plugin {
 			ablyManager.publishMessage("c", cleanedMessage, "c:" + client.getGuestClanChannel().getName(),
 					client.getGuestClanChannel().getName());
 		} else {
+
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 		}
 	}

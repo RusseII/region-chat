@@ -234,8 +234,12 @@ public class AblyManager {
 	public void meowHiss(PresenceMessage message) {
 
 		try {
-			Channel currentChannel = ablyRealtime.channels.get("w:"+String.valueOf(client.getWorld()));
+
+			Channel currentChannel = ablyRealtime.channels.get("pr");
+
 			members = currentChannel.presence.get(false);
+
+		
 		}
 
 		catch (AblyException e) {
@@ -355,16 +359,14 @@ public class AblyManager {
 		}
 	}
 
-	public void connectPress() {
-		String world = String.valueOf(client.getWorld());
+	public void connectPress(String name) {
 		if (client.getLocalPlayer() == null) {
 			return;
 		}
 		try {
-			Channel currentChannel = ablyRealtime.channels.get("w:" + world);
-			String name = Text.sanitize(client.getLocalPlayer().getName());
-			 currentChannel.presence.subscribe(this::meowHiss);
-			 currentChannel.presence.enterClient(name);
+			Channel currentChannel = ablyRealtime.channels.get("pr");
+			currentChannel.presence.subscribe(PresenceMessage.Action.enter, this::meowHiss);
+			currentChannel.presence.enterClient(name);
 		}
 		catch (AblyException err) {
 			log.error("error", err);
