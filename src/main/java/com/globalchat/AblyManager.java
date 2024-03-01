@@ -367,7 +367,7 @@ public class AblyManager {
 		try {
 			Channel currentChannel = ablyRealtime.channels.get("pr");
 			currentChannel.presence.subscribe(PresenceMessage.Action.enter, this::meowHiss);
-			currentChannel.presence.enterClient(name);
+			currentChannel.presence.enterClient(name, "enter");
 		}
 		catch (AblyException err) {
 			log.error("error", err);
