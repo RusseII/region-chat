@@ -85,6 +85,11 @@ public class GlobalChatPlugin extends Plugin {
 
 	@Getter
 	@Setter
+	private boolean shouldConnect = true;
+
+
+	@Getter
+	@Setter
 	private String friendsChat;
 
 	@Getter
@@ -123,10 +128,13 @@ public class GlobalChatPlugin extends Plugin {
 	@Override
 	protected void shutDown() throws Exception {
 		ablyManager.closeConnection();
+		shouldConnect = true;
 	}
+
 
 	@Subscribe
 	public void onWorldChanged(WorldChanged worldChanged) {
+		shouldConnect = true;
 		ablyManager.closeConnection();
 		ablyManager.startConnection();
 	}
@@ -183,10 +191,15 @@ public class GlobalChatPlugin extends Plugin {
 			if (name.equals("")) {
 				return false;
 			}
+			if (!shouldConnect) {
+				return true;
+			}
 			String sanitizedName = Text.sanitize(name);
+
 			ablyManager.subscribeToCorrectChannel("p:" + name);
 			ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
 			ablyManager.connectPress(sanitizedName);
+			shouldConnect = false;
 
 			return true;
 		});
@@ -200,7 +213,7 @@ public class GlobalChatPlugin extends Plugin {
 			if (client.getGameState() != GameState.LOGIN_SCREEN) {
 				return true;
 			}
-
+			shouldConnect = true;
 			ablyManager.closeConnection();
 			ablyManager.startConnection();
 
