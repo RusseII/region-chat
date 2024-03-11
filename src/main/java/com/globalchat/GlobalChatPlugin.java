@@ -96,11 +96,6 @@ public class GlobalChatPlugin extends Plugin {
 	@Setter
 	private String theClanName;
 
-
-	@Getter
-	private final HashMap<Integer, Boolean> filteredMessageIds = new HashMap<>();
-
-
 	public static final int CYCLES_PER_GAME_TICK = Constants.GAME_TICK_LENGTH / Constants.CLIENT_TICK_LENGTH;
 
 
@@ -339,16 +334,9 @@ public class GlobalChatPlugin extends Plugin {
 		boolean shouldConsiderHiding = !isLocalPlayerSendingMessage && ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT;
 
 		if (shouldConsiderHiding && ablyManager.isUnderCbLevel(cleanedName)) {
-
-			intStack[intStackSize - 3] = 0;
-
-			filteredMessageIds.put(messageId, true);
-
-		}
-		if (shouldConsiderHiding && filteredMessageIds.containsKey(messageId)) {
-
 			intStack[intStackSize - 3] = 0;
 		}
+
 
 		}
 
