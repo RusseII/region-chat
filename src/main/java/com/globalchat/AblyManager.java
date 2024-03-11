@@ -80,6 +80,8 @@ public class AblyManager {
 
 	private final Map<String, String> previousMessages = new HashMap<>();
 
+	private final HashMap<String, Integer> playerCombats = new HashMap<>();
+
 	private boolean changingChannels;
 
 
@@ -116,9 +118,15 @@ public class AblyManager {
 
 	public boolean isUnderCbLevel(String username) {
 		String cleanedName = Text.sanitize(username);
+		Integer cachedCbLevel = playerCombats.get(cleanedName);
+		if (cachedCbLevel != null) {
+			return cachedCbLevel < config.filterOutFromBelowCblvl();
+		}
+
 
 		for (Player player : client.getPlayers()) {
 			if (player != null && player.getName() != null && cleanedName.equals(player.getName())) {
+				playerCombats.put(cleanedName, player.getCombatLevel());
 				return player.getCombatLevel() < config.filterOutFromBelowCblvl();
 			}
 		}
