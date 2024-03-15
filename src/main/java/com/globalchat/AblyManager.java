@@ -180,6 +180,8 @@ public class AblyManager {
 				"I'm healing Verzik!"));
 		// Messages from TOAMistakeTrackerSpam
 		spamMessages.addAll(Arrays.asList(
+				"Argh! It burns!",
+				"Come on and slam!",
 				"Ah! It burns!",
 				"Embrace Darkness!",
 				"I'm too slow!",
@@ -217,6 +219,9 @@ public class AblyManager {
 
 	public void publishMessage(String t, String message, String channel, String to) {
 		if (client.getLocalPlayer() == null) {
+			return;
+		}
+		if (config.readOnlyMode()) {
 			return;
 		}
 

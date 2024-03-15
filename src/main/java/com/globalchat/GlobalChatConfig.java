@@ -30,11 +30,21 @@ import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.Range;
 @ConfigGroup("globalchat")
 public interface GlobalChatConfig extends Config {
+
+    @ConfigItem(
+            keyName = "readOnlyMode",
+            name = "Read-Only Mode",
+            description = "Activating this allows you to view global chat messages, but your typed messages will not be broadcast globally, similar to if the plugin was off.",
+            position = 1
+    )
+    default boolean readOnlyMode() {
+        return false;
+    }
     @ConfigItem(
             keyName = "hideSpamMessages",
-            name = "Hide mistake plugin msgs",
+            name = "Hide non-player messages",
             description = "Hides spam messages from mistake plugins, vengeance, and some other sources",
-            position = 1
+            position = 2
     )
     default boolean hideSpamMessages() {
         return true;
@@ -43,7 +53,7 @@ public interface GlobalChatConfig extends Config {
         keyName = "filterOutFromBelowCblvl",
         name = "Hide Msgs < CB Level",
         description = "This hides all messages from users below the specified combat level. It's usedful for blocking the low level spam bots",
-        position = 2
+        position = 3
 )
 @Range(
     min = 3,
