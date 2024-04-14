@@ -117,6 +117,8 @@ public class GlobalChatPlugin extends Plugin {
 	@Override
 	protected void startUp() throws Exception {
 		ablyManager.startConnection();
+		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
+								// nothing on initial call
 
 	}
 
