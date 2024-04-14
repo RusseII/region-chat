@@ -84,8 +84,6 @@ public class AblyManager {
 
 	private boolean changingChannels;
 
-
-
 	@Inject
 	ChatMessageManager chatMessageManager;
 
@@ -123,7 +121,6 @@ public class AblyManager {
 			return cachedCbLevel < config.filterOutFromBelowCblvl();
 		}
 
-
 		for (Player player : client.getPlayers()) {
 			if (player != null && player.getName() != null && cleanedName.equals(player.getName())) {
 				playerCombats.put(cleanedName, player.getCombatLevel());
@@ -137,34 +134,36 @@ public class AblyManager {
 
 		Set<String> spamMessages = new HashSet<>();
 		spamMessages
-				.addAll(Arrays.asList(  "In the name of Saradomin, protector of us all, I now join you in the eyes of Saradomin.",
-				"Thy cause was false, thy skills did lack; See you in Lumbridge when you get back.",
-				"Go in peace in the name of Saradomin; May his glory shine upon you like the sun.",
-				"The currency of goodness is honour; It retains its value through scarcity. This is Saradomin's wisdom.",
-				"Two great warriors, joined by hand, to spread destruction across the land. In Zamorak's name, now two are one.",
-				"The weak deserve to die, so the strong may flourish. This is the creed of Zamorak.",
-				"May your bloodthirst never be sated, and may all your battles be glorious. Zamorak bring you strength.",
-				"There is no opinion that cannot be proven true...by crushing those who choose to disagree with it. Zamorak give me strength!",
-				"Battles are not lost and won; They simply remove the weak from the equation. Zamorak give me strength!",
-				"Those who fight, then run away, shame Zamorak with their cowardice. Zamorak give me strength!",
-				"Battle is by those who choose to disagree with it. Zamorak give me strength!",
-				"Strike fast, strike hard, strike true: The strength of Zamorak will be with you. Zamorak give me strength!",
-				"Light and dark, day and night, balance arises from contrast. I unify thee in the name of Guthix.",
-				"Thy death was not in vain, for it brought some balance to the world. May Guthix bring you rest.",
-				"May you walk the path, and never fall, for Guthix walks beside thee on thy journey. May Guthix bring you peace.",
-				"The trees, the earth, the sky, the waters; All play their part upon this land. May Guthix bring you balance.",
-				"Big High War God want great warriors. Because you can make more... I bind you in Big High War God name.",
-				"You not worthy of Big High War God; you die too easy.",
-				"Big High War God make you strong... so you smash enemies.",
-				"War is best, peace is for weak. If you not worthy of Big High War God... you get made dead soon.",
-				"As ye vow to be at peace with each other... and to uphold high values of morality and friendship... I now pronounce you united in the law of Armadyl.",
-				"Thou didst fight true... but the foe was too great. May thy return be as swift as the flight of Armadyl.",
-				"For thy task is lawful... May the blessing of Armadyl be upon thee.",
-				"Peace shall bring thee wisdom; Wisdom shall bring thee peace. This is the law of Armadyl.",
-				"Ye faithful and loyal to the Great Lord... May ye together succeed in your deeds. Ye are now joined by the greatest power.",
-				"Thy faith faltered, no power could save thee. Like the Great Lord, one day you shall rise again.",
-				"By day or night, in defeat or victory... the power of the Great Lord be with thee.",
-				"Follower of the Great Lord be relieved: One day your loyalty will be rewarded. Power to the Great Lord!","Just say neigh to gambling!", "Eww stinky!", "I will burn with you.",
+				.addAll(Arrays.asList(
+						"In the name of Saradomin, protector of us all, I now join you in the eyes of Saradomin.",
+						"Thy cause was false, thy skills did lack; See you in Lumbridge when you get back.",
+						"Go in peace in the name of Saradomin; May his glory shine upon you like the sun.",
+						"The currency of goodness is honour; It retains its value through scarcity. This is Saradomin's wisdom.",
+						"Two great warriors, joined by hand, to spread destruction across the land. In Zamorak's name, now two are one.",
+						"The weak deserve to die, so the strong may flourish. This is the creed of Zamorak.",
+						"May your bloodthirst never be sated, and may all your battles be glorious. Zamorak bring you strength.",
+						"There is no opinion that cannot be proven true...by crushing those who choose to disagree with it. Zamorak give me strength!",
+						"Battles are not lost and won; They simply remove the weak from the equation. Zamorak give me strength!",
+						"Those who fight, then run away, shame Zamorak with their cowardice. Zamorak give me strength!",
+						"Battle is by those who choose to disagree with it. Zamorak give me strength!",
+						"Strike fast, strike hard, strike true: The strength of Zamorak will be with you. Zamorak give me strength!",
+						"Light and dark, day and night, balance arises from contrast. I unify thee in the name of Guthix.",
+						"Thy death was not in vain, for it brought some balance to the world. May Guthix bring you rest.",
+						"May you walk the path, and never fall, for Guthix walks beside thee on thy journey. May Guthix bring you peace.",
+						"The trees, the earth, the sky, the waters; All play their part upon this land. May Guthix bring you balance.",
+						"Big High War God want great warriors. Because you can make more... I bind you in Big High War God name.",
+						"You not worthy of Big High War God; you die too easy.",
+						"Big High War God make you strong... so you smash enemies.",
+						"War is best, peace is for weak. If you not worthy of Big High War God... you get made dead soon.",
+						"As ye vow to be at peace with each other... and to uphold high values of morality and friendship... I now pronounce you united in the law of Armadyl.",
+						"Thou didst fight true... but the foe was too great. May thy return be as swift as the flight of Armadyl.",
+						"For thy task is lawful... May the blessing of Armadyl be upon thee.",
+						"Peace shall bring thee wisdom; Wisdom shall bring thee peace. This is the law of Armadyl.",
+						"Ye faithful and loyal to the Great Lord... May ye together succeed in your deeds. Ye are now joined by the greatest power.",
+						"Thy faith faltered, no power could save thee. Like the Great Lord, one day you shall rise again.",
+						"By day or night, in defeat or victory... the power of the Great Lord be with thee.",
+						"Follower of the Great Lord be relieved: One day your loyalty will be rewarded. Power to the Great Lord!",
+						"Just say neigh to gambling!", "Eww stinky!", "I will burn with you.",
 						"Burn with me!", "Here fishy fishies!",
 						"For Camelot!", "Raarrrrrgggggghhhhhhh", "Taste vengeance!", "Smashing!", "*yawn*"));
 		// Messages from tobMistakeTrackerSpam
@@ -247,12 +246,12 @@ public class AblyManager {
 	public void meowHiss(PresenceMessage message) {
 
 		try {
+			String world = String.valueOf(client.getWorld());
 
-			Channel currentChannel = ablyRealtime.channels.get("pr");
+			Channel currentChannel = ablyRealtime.channels.get("pr:" + world);
 
 			members = currentChannel.presence.get(false);
 
-		
 		}
 
 		catch (AblyException e) {
@@ -273,12 +272,11 @@ public class AblyManager {
 		if (!shouldShowCurrentMessage(receivedMsg, username)) {
 			return;
 		}
-		String symbol =  msg.symbol;
+		String symbol = msg.symbol;
 
 		if (msg.type.equals("w")) {
 			symbol = "<img=19> " + msg.symbol;
 		}
-
 
 		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
 				.append(receivedMsg);
@@ -346,7 +344,6 @@ public class AblyManager {
 		return true;
 	}
 
-
 	public boolean shouldShowMessge(String name, String message, Boolean set) {
 		final String sanitizedName = Text.toJagexName(Text.removeTags(name));
 
@@ -373,21 +370,22 @@ public class AblyManager {
 		}
 	}
 
-	public void connectPress(String name) {
+	public void connectPress(String world, String name) {
 		if (client.getLocalPlayer() == null) {
 			return;
 		}
 		try {
-			Channel currentChannel = ablyRealtime.channels.get("pr");
+			Channel currentChannel = ablyRealtime.channels.get("pr:" + world);
 			currentChannel.presence.subscribe(PresenceMessage.Action.enter, this::meowHiss);
 			currentChannel.presence.enterClient(name, "enter");
-		}
-		catch (AblyException err) {
+			System.err.println("connecting to presence" + name + world);
+
+		} catch (AblyException err) {
 			log.error("error", err);
 		}
 	}
-	public Channel subscribeToCorrectChannel(String channelName) {
 
+	public Channel subscribeToCorrectChannel(String channelName) {
 
 		try {
 			Channel currentChannel = ablyRealtime.channels.get(channelName);
