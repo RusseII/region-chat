@@ -191,9 +191,10 @@ public class GlobalChatPlugin extends Plugin {
 			}
 			String sanitizedName = Text.sanitize(name);
 
+			String world = String.valueOf(client.getWorld());
 			ablyManager.subscribeToCorrectChannel("p:" + name);
-			ablyManager.subscribeToCorrectChannel("w:" + String.valueOf(client.getWorld()));
-			ablyManager.connectPress(sanitizedName);
+			ablyManager.subscribeToCorrectChannel("w:" + world );
+			ablyManager.connectPress(world, sanitizedName);
 			shouldConnect = false;
 
 			return true;
