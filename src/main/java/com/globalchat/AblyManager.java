@@ -265,6 +265,7 @@ public class AblyManager {
 
 		GlobalChatMessage msg = gson.fromJson((JsonElement) message.data, GlobalChatMessage.class);
 		String username = Text.sanitize(msg.username);
+		String symbol = getValidAccountIcon(msg.symbol);
 		String receivedMsg = Text.removeTags(msg.message);
 		if (!shouldShowMessge(username, receivedMsg, false)) {
 			return;
@@ -272,7 +273,6 @@ public class AblyManager {
 		if (!shouldShowCurrentMessage(receivedMsg, username)) {
 			return;
 		}
-		String symbol = msg.symbol;
 
 		if (msg.type.equals("w")) {
 			symbol = "<img=19> " + msg.symbol;
@@ -397,6 +397,14 @@ public class AblyManager {
 
 	}
 
+	private String getValidAccountIcon(String accountIcon)
+	{
+		if (accountIcon.equals("<img=2>")) return accountIcon;
+		if (accountIcon.equals("<img=10>")) return accountIcon;
+		if (accountIcon.equals("<img=3>")) return accountIcon;
+		return "";
+	}
+	
 	private String getAccountIcon() {
 		if (client.getWorldType().contains(WorldType.TOURNAMENT_WORLD)) {
 			return "<img=33>";
