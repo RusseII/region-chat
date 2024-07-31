@@ -38,9 +38,12 @@ import io.ably.lib.realtime.ChannelState;
 import io.ably.lib.realtime.CompletionListener;
 import io.ably.lib.realtime.Presence;
 import io.ably.lib.types.AblyException;
+import io.ably.lib.types.ChannelOptions;
 import io.ably.lib.types.ClientOptions;
 import io.ably.lib.types.Message;
+import io.ably.lib.types.Param;
 import io.ably.lib.types.PresenceMessage;
+import java.util.Base64;
 
 import java.util.Set;
 import java.util.HashMap;
@@ -58,6 +61,7 @@ import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.util.Text;
 import net.runelite.api.Player;
 import net.runelite.api.Constants;
+import net.runelite.api.Friend;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -217,16 +221,31 @@ public class AblyManager {
 	}
 
 	public void publishMessage(String t, String message, String channel, String to) {
-		if (client.getLocalPlayer() == null) {
-			return;
-		}
-		if (config.readOnlyMode()) {
-			return;
-		}
-
-		Channel currentChannel = ablyRealtime.channels.get(channel);
-
 		try {
+
+			Channel currentChannel;
+			if (t.equals("p")) {
+				Friend friend = client.getFriendContainer().findByName(to);
+				String key = String.valueOf(friend.getWorld());
+				String paddedKeyString = padKey(key, 16); // Ensure the key is 16 bytes long
+				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
+				ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
+				currentChannel = ablyRealtime.channels.get(channel, options);
+
+			} else {
+				String paddedKeyString = padKey("pub", 16); // Ensure the key is 16 bytes long
+				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
+				ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
+				currentChannel = ablyRealtime.channels.get(channel, options);
+
+			}
+			if (client.getLocalPlayer() == null) {
+				return;
+			}
+			if (config.readOnlyMode()) {
+				return;
+			}
+
 			JsonObject msg = io.ably.lib.util.JsonUtils.object()
 					.add("symbol", getAccountIcon())
 					.add("username", client.getLocalPlayer().getName())
@@ -363,7 +382,13 @@ public class AblyManager {
 	private void setupAblyInstances() {
 		try {
 			ClientOptions clientOptions = new ClientOptions();
-			clientOptions.key = "ubLi2Q.kA6NlA:djTnpbYSimiCtMw-5bhaOXKmDB3hd-GWsyyPtZHvh3k";
+			String name = Text.sanitize(client.getLocalPlayer().getName());
+			Param[] params = new Param[] {
+					new Param("clientId", name),
+			};
+			clientOptions.authHeaders = params;
+			clientOptions.authUrl = "https://global-chat-plugin.vercel.app/api/token";
+
 			ablyRealtime = new AblyRealtime(clientOptions);
 		} catch (AblyException e) {
 			e.printStackTrace();
@@ -384,10 +409,24 @@ public class AblyManager {
 		}
 	}
 
-	public Channel subscribeToCorrectChannel(String channelName) {
+	private static String padKey(String key, int length) {
+		if (key.length() >= length) {
+			return key.substring(0, length);
+		}
+		StringBuilder keyBuilder = new StringBuilder(key);
+		while (keyBuilder.length() < length) {
+			keyBuilder.append("0"); // Pad the key with zeros
+		}
+		return keyBuilder.toString();
+	}
+
+	public Channel subscribeToCorrectChannel(String channelName, String key) {
 
 		try {
-			Channel currentChannel = ablyRealtime.channels.get(channelName);
+			String paddedKeyString = padKey(key, 16); // Ensure the key is 16 bytes long
+			String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
+			ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
+			Channel currentChannel = ablyRealtime.channels.get(channelName, options);
 			currentChannel.subscribe(this::handleMessage);
 			return currentChannel;
 		} catch (AblyException err) {

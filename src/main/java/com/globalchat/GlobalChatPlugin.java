@@ -68,7 +68,6 @@ import static net.runelite.api.MenuAction.RUNELITE_PLAYER;
 import static net.runelite.api.MenuAction.WALK;
 import static net.runelite.api.MenuAction.WIDGET_TARGET_ON_PLAYER;
 
-
 @Slf4j
 @PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
 		"chat" })
@@ -87,7 +86,6 @@ public class GlobalChatPlugin extends Plugin {
 	@Setter
 	private boolean shouldConnect = true;
 
-
 	@Getter
 	@Setter
 	private String friendsChat;
@@ -97,7 +95,6 @@ public class GlobalChatPlugin extends Plugin {
 	private String theClanName;
 
 	public static final int CYCLES_PER_GAME_TICK = Constants.GAME_TICK_LENGTH / Constants.CLIENT_TICK_LENGTH;
-
 
 	private static final int OVERHEAD_TEXT_TICK_TIMEOUT = 5;
 	private static final int CYCLES_FOR_OVERHEAD_TEXT = OVERHEAD_TEXT_TICK_TIMEOUT * CYCLES_PER_GAME_TICK;
@@ -116,7 +113,7 @@ public class GlobalChatPlugin extends Plugin {
 
 	@Override
 	protected void startUp() throws Exception {
-		ablyManager.startConnection();
+		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
 								// nothing on initial call
 
@@ -127,7 +124,6 @@ public class GlobalChatPlugin extends Plugin {
 		ablyManager.closeConnection();
 		shouldConnect = true;
 	}
-
 
 	@Subscribe
 	public void onWorldChanged(WorldChanged worldChanged) {
@@ -146,7 +142,6 @@ public class GlobalChatPlugin extends Plugin {
 		}
 	}
 
-
 	@Subscribe
 	public void onFriendsChatMemberJoined(FriendsChatMemberJoined event) {
 		final FriendsChatMember member = event.getMember();
@@ -159,7 +154,7 @@ public class GlobalChatPlugin extends Plugin {
 		if (isCurrentUser) {
 			FriendsChatManager friendsChatManager = client.getFriendsChatManager();
 			friendsChat = friendsChatManager.getOwner();
-			ablyManager.subscribeToCorrectChannel("f:" + friendsChat);
+			ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
 		}
 	}
 
@@ -194,8 +189,9 @@ public class GlobalChatPlugin extends Plugin {
 			String sanitizedName = Text.sanitize(name);
 
 			String world = String.valueOf(client.getWorld());
-			ablyManager.subscribeToCorrectChannel("p:" + name);
-			ablyManager.subscribeToCorrectChannel("w:" + world );
+			ablyManager.startConnection();
+			ablyManager.subscribeToCorrectChannel("p:" + name, world);
+			ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
 			ablyManager.connectPress(world, sanitizedName);
 			shouldConnect = false;
 
@@ -212,13 +208,12 @@ public class GlobalChatPlugin extends Plugin {
 				return true;
 			}
 			shouldConnect = true;
-			ablyManager.closeConnection();
-			ablyManager.startConnection();
+			// ablyManager.closeConnection();
+			// ablyManager.startConnection();
 
 			return true;
 		});
 	}
-
 
 	@Subscribe
 	public void onClanChannelChanged(ClanChannelChanged event) {
@@ -227,7 +222,9 @@ public class GlobalChatPlugin extends Plugin {
 		boolean isGuest = event.isGuest();
 
 		if (!inClanNow) {
-			String channelPrefix = isGuest ? "c:" + theGuesttheClanName : "c:" + theClanName;
+			String channelPrefix = isGuest ? "c:" + theGuesttheClanName
+					: "c:" +
+							theClanName;
 			ablyManager.closeSpecificChannel(channelPrefix);
 
 			if (isGuest) {
@@ -237,7 +234,7 @@ public class GlobalChatPlugin extends Plugin {
 			}
 		} else {
 			String targetChannelName = "c:" + channelName;
-			ablyManager.subscribeToCorrectChannel(targetChannelName);
+			ablyManager.subscribeToCorrectChannel(targetChannelName, "pub");
 
 			if (isGuest) {
 				theGuesttheClanName = channelName;
@@ -262,7 +259,6 @@ public class GlobalChatPlugin extends Plugin {
 		String cleanedMessage = Text.removeTags(event.getMessage());
 
 		String cleanedName = Text.sanitize(event.getName());
-
 		boolean isPublic = event.getType().equals(ChatMessageType.PUBLICCHAT);
 
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
@@ -278,18 +274,17 @@ public class GlobalChatPlugin extends Plugin {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.PRIVATECHAT.getType());
 			lineBuffer.removeMessageNode(event.getMessageNode());
-				} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && !isLocalPlayerSendingMessage 
+		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && !isLocalPlayerSendingMessage
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.FRIENDSCHAT.getType());
-			lineBuffer.removeMessageNode(event.getMessageNode()); }
-			else if (event.getType().equals(ChatMessageType.CLAN_CHAT) && !isLocalPlayerSendingMessage
-					&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
+			lineBuffer.removeMessageNode(event.getMessageNode());
+		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT) && !isLocalPlayerSendingMessage
+				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.CLAN_CHAT.getType());
 			lineBuffer.removeMessageNode(event.getMessageNode());
-		}
-		else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT) && !isLocalPlayerSendingMessage
+		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT) && !isLocalPlayerSendingMessage
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.CLAN_GUEST_CHAT.getType());
@@ -318,28 +313,28 @@ public class GlobalChatPlugin extends Plugin {
 	public void onScriptCallbackEvent(ScriptCallbackEvent event) {
 
 		if ("chatFilterCheck".equals(event.getEventName())) {
-			
-		int[] intStack = client.getIntStack();
-		int intStackSize = client.getIntStackSize();
-		String[] stringStack = client.getStringStack();
-		int stringStackSize = client.getStringStackSize();
 
-		// Extract the message type and message content from the event.
-		final int messageType = intStack[intStackSize - 2];
-		final int messageId = intStack[intStackSize - 1];
-		String message = stringStack[stringStackSize - 1];
+			int[] intStack = client.getIntStack();
+			int intStackSize = client.getIntStackSize();
+			String[] stringStack = client.getStringStack();
+			int stringStackSize = client.getStringStackSize();
 
-		final MessageNode messageNode = client.getMessages().get(messageId);
-		final String name = messageNode.getName();
-		String cleanedName = Text.sanitize(name);
-		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
+			// Extract the message type and message content from the event.
+			final int messageType = intStack[intStackSize - 2];
+			final int messageId = intStack[intStackSize - 1];
+			String message = stringStack[stringStackSize - 1];
 
-		boolean shouldConsiderHiding = !isLocalPlayerSendingMessage && ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT;
+			final MessageNode messageNode = client.getMessages().get(messageId);
+			final String name = messageNode.getName();
+			String cleanedName = Text.sanitize(name);
+			boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 
-		if (shouldConsiderHiding && ablyManager.isUnderCbLevel(cleanedName)) {
-			intStack[intStackSize - 3] = 0;
-		}
+			boolean shouldConsiderHiding = !isLocalPlayerSendingMessage
+					&& ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT;
 
+			if (shouldConsiderHiding && ablyManager.isUnderCbLevel(cleanedName)) {
+				intStack[intStackSize - 3] = 0;
+			}
 
 		}
 
@@ -363,18 +358,15 @@ public class GlobalChatPlugin extends Plugin {
 	}
 
 	@Subscribe(priority = -2) // conflicts with chat filter plugin without this priority
-	public void onOverheadTextChanged(OverheadTextChanged event)
-	{
-		if (!(event.getActor() instanceof Player) || event.getActor().getName() == null) return;
+	public void onOverheadTextChanged(OverheadTextChanged event) {
+		if (!(event.getActor() instanceof Player) || event.getActor().getName() == null)
+			return;
 		String cleanedName = Text.sanitize(event.getActor().getName());
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 
-
-		if (!isLocalPlayerSendingMessage && ablyManager.isUnderCbLevel(cleanedName))
-		{
+		if (!isLocalPlayerSendingMessage && ablyManager.isUnderCbLevel(cleanedName)) {
 			event.getActor().setOverheadText("");
 		}
-
 
 	}
 
@@ -382,7 +374,6 @@ public class GlobalChatPlugin extends Plugin {
 	GlobalChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(GlobalChatConfig.class);
 	}
-
 
 	@Subscribe(priority = -2)
 	public void onClientTick(ClientTick clientTick) {
@@ -427,8 +418,6 @@ public class GlobalChatPlugin extends Plugin {
 					return;
 				}
 
-
-
 				String oldTarget = entry.getTarget();
 				String newTarget = decorateTarget(oldTarget, player.getName());
 
@@ -437,8 +426,8 @@ public class GlobalChatPlugin extends Plugin {
 
 		}
 	}
-	public String decorateTarget(String oldTarget, String playerName)
-	{
+
+	public String decorateTarget(String oldTarget, String playerName) {
 		PresenceMessage[] members = ablyManager.members;
 		for (PresenceMessage member : members) { // Corrected variable names and types
 			if (member.clientId.equals(playerName)) {
@@ -446,13 +435,10 @@ public class GlobalChatPlugin extends Plugin {
 
 				newTarget = "<img=19> " + newTarget;
 
-
 				return newTarget;
 			}
 		}
-	return oldTarget;
+		return oldTarget;
 	}
-
-
 
 }
