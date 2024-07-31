@@ -277,6 +277,16 @@ public class AblyManager {
 		}
 	}
 
+	private String getValidAccountIcon(String accountIcon) {
+		if (accountIcon.equals("<img=2>"))
+			return accountIcon;
+		if (accountIcon.equals("<img=10>"))
+			return accountIcon;
+		if (accountIcon.equals("<img=3>"))
+			return accountIcon;
+		return "";
+	}
+
 	private void handleAblyMessage(Message message) {
 		if (client.getGameState() != GameState.LOGGED_IN) {
 			return;
@@ -291,7 +301,8 @@ public class AblyManager {
 		if (!shouldShowCurrentMessage(receivedMsg, username)) {
 			return;
 		}
-		String symbol = msg.symbol;
+
+		String symbol = getValidAccountIcon(msg.symbol);
 
 		if (msg.type.equals("w")) {
 			symbol = "<img=19> " + msg.symbol;
