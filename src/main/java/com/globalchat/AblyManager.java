@@ -361,12 +361,20 @@ public class AblyManager {
 
 	}
 
+	// Checks for bits someone could insert in to be icons
+	// Important in case it's a JMod icon or something
+	private boolean isInvalidUsername(String username) {
+		return username.toLowerCase().contains("<") || username.toLowerCase().startsWith("mod ");
+	}
+
 	public boolean shouldShowCurrentMessage(String message, String name) {
 		if (config.hideSpamMessages()) {
 			if (isSpam(message)) {
 				return false;
 			}
 		}
+		if (isInvalidUsername(name))
+			return false;
 
 		if (isUnderCbLevel(name)) {
 			return false;
