@@ -375,70 +375,71 @@ public class GlobalChatPlugin extends Plugin {
 		return configManager.getConfig(GlobalChatConfig.class);
 	}
 
-	@Subscribe(priority = -2)
-	public void onClientTick(ClientTick clientTick) {
-		if (client.isMenuOpen()) {
-			return;
-		}
+	// @Subscribe(priority = -2)
+	// public void onClientTick(ClientTick clientTick) {
+	// if (client.isMenuOpen()) {
+	// return;
+	// }
 
-		MenuEntry[] menuEntries = client.getMenuEntries();
+	// MenuEntry[] menuEntries = client.getMenuEntries();
 
-		for (MenuEntry entry : menuEntries) {
-			MenuAction type = entry.getType();
+	// for (MenuEntry entry : menuEntries) {
+	// MenuAction type = entry.getType();
 
-			if (type == WALK
-					|| type == WIDGET_TARGET_ON_PLAYER
-					|| type == ITEM_USE_ON_PLAYER
-					|| type == PLAYER_FIRST_OPTION
-					|| type == PLAYER_SECOND_OPTION
-					|| type == PLAYER_THIRD_OPTION
-					|| type == PLAYER_FOURTH_OPTION
-					|| type == PLAYER_FIFTH_OPTION
-					|| type == PLAYER_SIXTH_OPTION
-					|| type == PLAYER_SEVENTH_OPTION
-					|| type == PLAYER_EIGHTH_OPTION
-					|| type == RUNELITE_PLAYER) {
-				Player[] players = client.getCachedPlayers();
-				Player player = null;
+	// if (type == WALK
+	// || type == WIDGET_TARGET_ON_PLAYER
+	// || type == ITEM_USE_ON_PLAYER
+	// || type == PLAYER_FIRST_OPTION
+	// || type == PLAYER_SECOND_OPTION
+	// || type == PLAYER_THIRD_OPTION
+	// || type == PLAYER_FOURTH_OPTION
+	// || type == PLAYER_FIFTH_OPTION
+	// || type == PLAYER_SIXTH_OPTION
+	// || type == PLAYER_SEVENTH_OPTION
+	// || type == PLAYER_EIGHTH_OPTION
+	// || type == RUNELITE_PLAYER) {
+	// Player[] players = client.getCachedPlayers();
+	// Player player = null;
 
-				int identifier = entry.getIdentifier();
+	// int identifier = entry.getIdentifier();
 
-				// 'Walk here' identifiers are offset by 1 because the default
-				// identifier for this option is 0, which is also a player index.
-				if (type == WALK) {
-					identifier--;
-				}
+	// // 'Walk here' identifiers are offset by 1 because the default
+	// // identifier for this option is 0, which is also a player index.
+	// if (type == WALK) {
+	// identifier--;
+	// }
 
-				if (identifier >= 0 && identifier < players.length) {
-					player = players[identifier];
+	// if (identifier >= 0 && identifier < players.length) {
+	// player = players[identifier];
 
-				}
+	// }
 
-				if (player == null) {
-					return;
-				}
+	// if (player == null) {
+	// return;
+	// }
 
-				String oldTarget = entry.getTarget();
-				String newTarget = decorateTarget(oldTarget, player.getName());
+	// String oldTarget = entry.getTarget();
+	// String newTarget = decorateTarget(oldTarget, player.getName());
 
-				entry.setTarget(newTarget);
-			}
+	// entry.setTarget(newTarget);
+	// }
 
-		}
-	}
+	// }
+	// }
 
-	public String decorateTarget(String oldTarget, String playerName) {
-		PresenceMessage[] members = ablyManager.members;
-		for (PresenceMessage member : members) { // Corrected variable names and types
-			if (member.clientId.equals(playerName)) {
-				String newTarget = oldTarget;
+	// public String decorateTarget(String oldTarget, String playerName) {
+	// PresenceMessage[] members = ablyManager.members;
+	// for (PresenceMessage member : members) { // Corrected variable names and
+	// types
+	// if (member.clientId.equals(playerName)) {
+	// String newTarget = oldTarget;
 
-				newTarget = "<img=19> " + newTarget;
+	// newTarget = "<img=19> " + newTarget;
 
-				return newTarget;
-			}
-		}
-		return oldTarget;
-	}
+	// return newTarget;
+	// }
+	// }
+	// return oldTarget;
+	// }
 
 }
