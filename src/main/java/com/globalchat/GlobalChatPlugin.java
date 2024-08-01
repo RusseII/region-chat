@@ -208,7 +208,7 @@ public class GlobalChatPlugin extends Plugin {
 				return true;
 			}
 			shouldConnect = true;
-			// ablyManager.closeConnection();
+			ablyManager.closeConnection();
 			// ablyManager.startConnection();
 
 			return true;
