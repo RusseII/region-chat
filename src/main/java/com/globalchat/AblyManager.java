@@ -246,9 +246,10 @@ public class AblyManager {
 				return;
 			}
 
+			String username = Text.removeTags(client.getLocalPlayer().getName());
 			JsonObject msg = io.ably.lib.util.JsonUtils.object()
 					.add("symbol", getAccountIcon())
-					.add("username", client.getLocalPlayer().getName())
+					.add("username", username)
 					.add("message", message).add("type", t).add("to", to).toJson();
 			currentChannel.publish("event", msg);
 		} catch (AblyException err) {
@@ -293,7 +294,7 @@ public class AblyManager {
 		}
 
 		GlobalChatMessage msg = gson.fromJson((JsonElement) message.data, GlobalChatMessage.class);
-		String username = Text.sanitize(msg.username);
+		String username = Text.removeTags(msg.username);
 		String receivedMsg = Text.removeTags(msg.message);
 		if (!shouldShowMessge(username, receivedMsg, false)) {
 			return;
@@ -319,14 +320,14 @@ public class AblyManager {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.PRIVATECHAT)
-					.name(symbol + msg.username)
+					.name(symbol + username)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 		} else if (msg.type.equals("w")) {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.PUBLICCHAT)
-					.name(symbol + msg.username)
+					.name(symbol + username)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 
@@ -347,14 +348,14 @@ public class AblyManager {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.FRIENDSCHAT)
-					.name(symbol + msg.username).sender(msg.to)
+					.name(symbol + username).sender(msg.to)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 		} else if (msg.type.equals("c") && !username.equals(client.getLocalPlayer().getName())) {
 
 			chatMessageManager.queue(QueuedMessage.builder()
 					.type(ChatMessageType.CLAN_CHAT)
-					.name(symbol + msg.username).sender(msg.to)
+					.name(symbol + username).sender(msg.to)
 					.runeLiteFormattedMessage(chatMessageBuilder.build())
 					.build());
 		}
@@ -364,7 +365,7 @@ public class AblyManager {
 	// Checks for bits someone could insert in to be icons
 	// Important in case it's a JMod icon or something
 	private boolean isInvalidUsername(String username) {
-		return username.toLowerCase().contains("<") || username.toLowerCase().startsWith("mod ");
+		return username.toLowerCase().startsWith("mod ");
 	}
 
 	public boolean shouldShowCurrentMessage(String message, String name) {
