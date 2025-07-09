@@ -109,6 +109,9 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	private ConfigManager configManager;
 
+	@Inject
+	private SupporterManager supporterManager;
+
 	@Override
 	protected void startUp() throws Exception {
 		// ablyManager.startConnection();
@@ -116,7 +119,7 @@ public class GlobalChatPlugin extends Plugin {
 								// nothing on initial call
 
 		// Setup info panel
-		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager);
+		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager);
 		log.info("Created GlobalChatInfoPanel");
 
 		// Create navigation button with simple icon
@@ -135,6 +138,11 @@ public class GlobalChatPlugin extends Plugin {
 	protected void shutDown() throws Exception {
 		ablyManager.closeConnection();
 		shouldConnect = true;
+
+		// Clean up supporter manager
+		if (supporterManager != null) {
+			supporterManager.shutdown();
+		}
 
 		// Clean up UI panel
 		if (navButton != null) {
