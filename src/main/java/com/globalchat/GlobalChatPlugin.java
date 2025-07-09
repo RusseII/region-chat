@@ -319,8 +319,8 @@ public class GlobalChatPlugin extends Plugin {
 
 			int[] intStack = client.getIntStack();
 			int intStackSize = client.getIntStackSize();
-			String[] stringStack = client.getStringStack();
-			int stringStackSize = client.getStringStackSize();
+			String[] stringStack = (String[]) client.getObjectStack();
+			int stringStackSize = client.getObjectStackSize();
 
 			// Extract the message type and message content from the event.
 			final int messageType = intStack[intStackSize - 2];
@@ -342,8 +342,8 @@ public class GlobalChatPlugin extends Plugin {
 		}
 
 		if ("friendsChatSetText".equals(event.getEventName())) {
-			String[] stringStack = client.getStringStack();
-			int stringStackSize = client.getStringStackSize();
+			String[] stringStack = (String[]) client.getObjectStack();
+			int stringStackSize = client.getObjectStackSize();
 			final String rsn = stringStack[stringStackSize - 1];
 			final String sanitized = Text.toJagexName(Text.removeTags(rsn));
 			PresenceMessage[] members = ablyManager.members;
