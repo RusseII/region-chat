@@ -27,6 +27,7 @@ package com.globalchat;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Range;
 @ConfigGroup("globalchat")
 public interface GlobalChatConfig extends Config {
@@ -52,6 +53,16 @@ public interface GlobalChatConfig extends Config {
 )
 default int filterOutFromBelowCblvl() {
     return 4;
+}
+
+@ConfigItem(
+    keyName = "updateNotificationShown",
+    name = "",
+    description = "",
+    hidden = true
+)
+default String updateNotificationShown() {
+    return "";
 }
 
 }
