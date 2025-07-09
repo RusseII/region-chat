@@ -6,6 +6,23 @@ This plugin is for you! This plugin ensures that your chat will reach one anothe
 
 World 491 is the homeworld for this plugin. You will be most likely to run into other plugin users on this world. 
 
+## ⚠️ Service Status & Limits
+
+**WARNING: Service will go offline when limits are reached!**
+
+### Current Status and Limits:
+- **Connection limit:** 200 concurrent users
+- **Message limit:** 6 million per month
+- **Channel limit:** 200 active channels
+
+### Your support will:
+- Increase connection limits (more players can chat)
+- Increase message limits (no more outages)
+- Keep the service running 24/7
+- Enable new features and improvements
+
+**[Support on Patreon](https://patreon.com/global_chat_plugin)** to help keep Global Chat running for everyone!
+
 ## How does this work?
 
 This project makes use of [Ably](https://www.ably.com), a realtime messaging and data synchronization platform, in order to communicate between clients. [Channels](https://ably.com/channels) are used to divide up communication between clients. Each channel's name is structured so as to indicate the world, that the channel encapsulates. For example:
