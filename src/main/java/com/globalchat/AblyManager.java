@@ -36,13 +36,11 @@ import io.ably.lib.realtime.AblyRealtime;
 import io.ably.lib.realtime.Channel;
 import io.ably.lib.realtime.ChannelState;
 import io.ably.lib.realtime.CompletionListener;
-import io.ably.lib.realtime.Presence;
 import io.ably.lib.types.AblyException;
 import io.ably.lib.types.ChannelOptions;
 import io.ably.lib.types.ClientOptions;
 import io.ably.lib.types.Message;
 import io.ably.lib.types.Param;
-import io.ably.lib.types.PresenceMessage;
 import java.util.Base64;
 
 import java.util.Set;
@@ -78,9 +76,6 @@ public class AblyManager {
 	@Inject
 	Gson gson;
 
-	@Getter
-	@Setter
-	public PresenceMessage[] members;
 
 	private final Map<String, String> previousMessages = new HashMap<>();
 
@@ -263,20 +258,6 @@ public class AblyManager {
 		}
 	}
 
-	public void meowHiss(PresenceMessage message) {
-
-		try {
-			String world = String.valueOf(client.getWorld());
-
-			Channel currentChannel = ablyRealtime.channels.get("pr:" + world);
-
-			members = currentChannel.presence.get(false);
-
-		}
-
-		catch (AblyException e) {
-		}
-	}
 
 	private String getValidAccountIcon(String accountIcon) {
 		if (accountIcon.equals("<img=2>"))
@@ -415,19 +396,6 @@ public class AblyManager {
 		}
 	}
 
-	public void connectPress(String world, String name) {
-		if (client.getLocalPlayer() == null) {
-			return;
-		}
-		try {
-			Channel currentChannel = ablyRealtime.channels.get("pr:" + world);
-			currentChannel.presence.subscribe(PresenceMessage.Action.enter, this::meowHiss);
-			currentChannel.presence.enterClient(name, "enter");
-
-		} catch (AblyException err) {
-			log.error("error", err);
-		}
-	}
 
 	private static String padKey(String key, int length) {
 		if (key.length() >= length) {

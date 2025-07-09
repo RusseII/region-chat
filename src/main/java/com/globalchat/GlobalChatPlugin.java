@@ -24,7 +24,6 @@
  */
 package com.globalchat;
 
-import io.ably.lib.types.PresenceMessage;
 import net.runelite.client.callback.ClientThread;
 
 import com.google.inject.Provides;
@@ -183,7 +182,6 @@ public class GlobalChatPlugin extends Plugin {
 			ablyManager.startConnection();
 			ablyManager.subscribeToCorrectChannel("p:" + name, world);
 			ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
-			ablyManager.connectPress(world, sanitizedName);
 			shouldConnect = false;
 
 			return true;
@@ -345,22 +343,6 @@ public class GlobalChatPlugin extends Plugin {
 
 		}
 
-		if ("friendsChatSetText".equals(event.getEventName())) {
-			String[] stringStack = (String[]) client.getObjectStack();
-			int stringStackSize = client.getObjectStackSize();
-			final String rsn = stringStack[stringStackSize - 1];
-			final String sanitized = Text.toJagexName(Text.removeTags(rsn));
-			PresenceMessage[] members = ablyManager.members;
-
-			for (PresenceMessage member : members) { // Corrected variable names and types
-				if (member.clientId.equals(sanitized)) {
-					Friend friend = client.getFriendContainer().findByName(rsn);
-					if (friend.getWorld() > 0) {
-						stringStack[stringStackSize - 1] = rsn + " <img=19>";
-					}
-				}
-			}
-		}
 
 	}
 
@@ -438,19 +420,5 @@ public class GlobalChatPlugin extends Plugin {
 	// }
 	// }
 
-	// public String decorateTarget(String oldTarget, String playerName) {
-	// PresenceMessage[] members = ablyManager.members;
-	// for (PresenceMessage member : members) { // Corrected variable names and
-	// types
-	// if (member.clientId.equals(playerName)) {
-	// String newTarget = oldTarget;
-
-	// newTarget = "<img=19> " + newTarget;
-
-	// return newTarget;
-	// }
-	// }
-	// return oldTarget;
-	// }
 
 }
