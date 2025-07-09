@@ -41,15 +41,6 @@ public interface GlobalChatConfig extends Config {
         return false;
     }
     @ConfigItem(
-            keyName = "hideSpamMessages",
-            name = "Hide non-player messages",
-            description = "Hides spam messages from mistake plugins, vengeance, and some other sources",
-            position = 2
-    )
-    default boolean hideSpamMessages() {
-        return true;
-    }
-    @ConfigItem(
         keyName = "filterOutFromBelowCblvl",
         name = "Hide Msgs < CB Level",
         description = "This hides all messages from users below the specified combat level. It's usedful for blocking the low level spam bots",
