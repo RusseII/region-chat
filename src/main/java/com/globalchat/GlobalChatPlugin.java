@@ -110,8 +110,20 @@ public class GlobalChatPlugin extends Plugin {
 	@Subscribe
 	public void onWorldChanged(WorldChanged worldChanged) {
 		shouldConnect = true;
+		
+		// Force cleanup before reconnecting
 		ablyManager.closeConnection();
-		ablyManager.startConnection();
+		
+		// Add delay to ensure cleanup completes before reconnection
+		clientThread.invokeLater(() -> {
+			try {
+				Thread.sleep(1000); // 1 second delay
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+			ablyManager.startConnection();
+			return true;
+		});
 	}
 
 	@Subscribe
@@ -253,6 +265,11 @@ public class GlobalChatPlugin extends Plugin {
 
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 		if (isPublic && isLocalPlayerSendingMessage) {
+			// Check for spam BEFORE publishing to save costs
+			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+				return; // Don't publish spam messages
+			}
+			
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 
 			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
@@ -283,6 +300,11 @@ public class GlobalChatPlugin extends Plugin {
 					.get(ChatMessageType.CLAN_GUEST_CHAT.getType());
 			lineBuffer.removeMessageNode(event.getMessageNode());
 		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && isLocalPlayerSendingMessage) {
+			// Check for spam BEFORE publishing to save costs
+			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+				return; // Don't publish spam messages
+			}
+			
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 			FriendsChatManager friendsChatManager = client.getFriendsChatManager();
 			if (friendsChatManager != null) {
@@ -291,6 +313,11 @@ public class GlobalChatPlugin extends Plugin {
 			}
 		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT)
 				&& isLocalPlayerSendingMessage) {
+			// Check for spam BEFORE publishing to save costs
+			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+				return; // Don't publish spam messages
+			}
+			
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
 			ClanChannel clanChannel = client.getClanChannel();
 			if (clanChannel != null) {
@@ -299,6 +326,11 @@ public class GlobalChatPlugin extends Plugin {
 			}
 		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT)
 				&& isLocalPlayerSendingMessage) {
+			// Check for spam BEFORE publishing to save costs
+			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+				return; // Don't publish spam messages
+			}
+			
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
 			ClanChannel guestClanChannel = client.getGuestClanChannel();
 			if (guestClanChannel != null) {
