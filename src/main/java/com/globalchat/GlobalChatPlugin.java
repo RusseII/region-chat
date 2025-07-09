@@ -47,7 +47,10 @@ import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.net.URL;
+import javax.imageio.ImageIO;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
@@ -477,24 +480,25 @@ public class GlobalChatPlugin extends Plugin {
 	}
 
 	private BufferedImage createSimpleIcon() {
-		BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-		Graphics2D g2 = image.createGraphics();
-		g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-
-		// Simple chat bubble icon
-		g2.setColor(Color.WHITE);
-		g2.fillOval(2, 2, 12, 10);
-		g2.setColor(Color.BLACK);
-		g2.drawOval(2, 2, 12, 10);
-
-		// Chat bubble tail
-		g2.setColor(Color.WHITE);
-		g2.fillPolygon(new int[] { 6, 8, 10 }, new int[] { 12, 14, 12 }, 3);
-		g2.setColor(Color.BLACK);
-		g2.drawPolygon(new int[] { 6, 8, 10 }, new int[] { 12, 14, 12 }, 3);
-
-		g2.dispose();
-		return image;
+		try {
+			// Load the icon from project root
+			BufferedImage image = ImageIO.read(new java.io.File("icon.png"));
+			
+			// Resize to 16x16 if needed
+			if (image.getWidth() != 16 || image.getHeight() != 16) {
+				BufferedImage resized = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+				Graphics2D g2 = resized.createGraphics();
+				g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+				g2.drawImage(image, 0, 0, 16, 16, null);
+				g2.dispose();
+				return resized;
+			}
+			
+			return image;
+		} catch (Exception e) {
+			log.error("Failed to load icon from project root", e);
+			return null;
+		}
 	}
 
 	// @Subscribe(priority = -2)
