@@ -75,6 +75,7 @@ public class AblyManager {
 	private static final int CYCLES_FOR_OVERHEAD_TEXT = OVERHEAD_TEXT_TICK_TIMEOUT * CYCLES_PER_GAME_TICK;
 
 	private final Client client;
+	private final SupporterManager supporterManager;
 
 	@Inject
 	Gson gson;
@@ -100,10 +101,11 @@ public class AblyManager {
 	private static final long ERROR_MESSAGE_COOLDOWN = 300000; // 5 minutes
 
 	@Inject
-	public AblyManager(Client client, GlobalChatConfig config, @Named("developerMode") boolean developerMode) {
+	public AblyManager(Client client, GlobalChatConfig config, @Named("developerMode") boolean developerMode, SupporterManager supporterManager) {
 		this.client = client;
 		this.config = config;
 		this.developerMode = developerMode;
+		this.supporterManager = supporterManager;
 	}
 
 	public void startConnection() {
@@ -346,6 +348,13 @@ public class AblyManager {
 			return accountIcon;
 		if (accountIcon.equals("<img=3>"))
 			return accountIcon;
+		// Allow supporter icons
+		if (accountIcon.equals("<img=313> "))
+			return accountIcon;
+		if (accountIcon.equals("<img=312> "))
+			return accountIcon;
+		if (accountIcon.equals("<img=314> "))
+			return accountIcon;
 		return "";
 	}
 
@@ -365,9 +374,19 @@ public class AblyManager {
 		}
 
 		String symbol = getValidAccountIcon(msg.symbol);
+		
+		// Add supporter icon if user is a supporter
+		String supporterIcon = supporterManager.getSupporterIcon(username);
+		if (!supporterIcon.isEmpty()) {
+			if (symbol.isEmpty()) {
+				symbol = supporterIcon;
+			} else {
+				symbol = supporterIcon + " " + symbol;
+			}
+		}
 
 		if (msg.type.equals("w")) {
-			symbol = "<img=19> " + msg.symbol;
+			symbol = "<img=19> " + symbol;
 		}
 
 		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()

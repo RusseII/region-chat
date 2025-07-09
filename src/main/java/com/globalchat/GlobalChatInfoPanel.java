@@ -37,6 +37,7 @@ import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
+import java.util.List;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.BorderFactory;
@@ -63,20 +64,23 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private final ConfigManager configManager;
     private final boolean developerMode;
     private final AblyManager ablyManager;
+    private final SupporterManager supporterManager;
 
     public GlobalChatInfoPanel() {
         super(false);
         this.configManager = null;
         this.developerMode = false;
         this.ablyManager = null;
+        this.supporterManager = null;
         init();
     }
 
-    public GlobalChatInfoPanel(boolean developerMode, AblyManager ablyManager) {
+    public GlobalChatInfoPanel(boolean developerMode, AblyManager ablyManager, SupporterManager supporterManager) {
         super(false);
         this.configManager = null;
         this.developerMode = developerMode;
         this.ablyManager = ablyManager;
+        this.supporterManager = supporterManager;
         init();
     }
 
@@ -111,6 +115,12 @@ public class GlobalChatInfoPanel extends PluginPanel {
         gbc.gridy++;
         panel.add(createSupportSection(), gbc);
 
+        // Add supporters section if we have the manager
+        if (supporterManager != null) {
+            gbc.gridy++;
+            panel.add(createSupportersSection(), gbc);
+        }
+
         gbc.gridy++;
         panel.add(createLinks(), gbc);
 
@@ -135,7 +145,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 BorderFactory.createMatteBorder(0, 0, 2, 0, ColorScheme.BRAND_ORANGE),
                 new EmptyBorder(5, 0, 8, 0)));
 
-        JLabel title = new JLabel("World Global Chat", SwingConstants.CENTER);
+        JLabel title = new JLabel("Global Chat", SwingConstants.CENTER);
         title.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 18f));
         title.setForeground(ColorScheme.BRAND_ORANGE);
         titlePanel.add(title, BorderLayout.CENTER);
@@ -190,14 +200,36 @@ public class GlobalChatInfoPanel extends PluginPanel {
     }
 
     private JPanel createSupportSection() {
-        JPanel panel = createSectionContainer("Keep Global Chat Running!");
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        panel.setBorder(new CompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
+                new EmptyBorder(15, 15, 15, 15)));
 
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Title
+        JLabel titleLabel = new JLabel("Keep Global Chat Running!");
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(titleLabel, gbc);
+        gbc.gridy++;
+
+        // Warning text
         JLabel warningText = new JLabel(
                 "<html><b style='color: #ff6b6b;'>WARNING: Service will go offline when limits are reached!</b></html>");
         warningText.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
-        warningText.setBorder(new EmptyBorder(0, 0, 8, 0));
-        panel.add(warningText);
+        gbc.insets = new Insets(0, 0, 10, 0);
+        panel.add(warningText, gbc);
+        gbc.gridy++;
 
+        // Current status
         JLabel currentStatus = new JLabel("<html>" +
                 "<b>Current Status and Limits:</b><br>" +
                 "- <b>Connection limit:</b> 200 concurrent users<br>" +
@@ -206,9 +238,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 "</html>");
         currentStatus.setFont(FontManager.getRunescapeFont().deriveFont(11f));
         currentStatus.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        currentStatus.setBorder(new EmptyBorder(0, 0, 12, 0));
-        panel.add(currentStatus);
+        gbc.insets = new Insets(0, 0, 15, 0);
+        panel.add(currentStatus, gbc);
+        gbc.gridy++;
 
+        // Benefits text
         JLabel benefitsText = new JLabel("<html>" +
                 "<b style='color: #4CAF50;'>Your support will:</b><br>" +
                 "- Increase connection limits (more players can chat)<br>" +
@@ -218,83 +252,263 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 "</html>");
         benefitsText.setFont(FontManager.getRunescapeFont().deriveFont(11f));
         benefitsText.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        benefitsText.setBorder(new EmptyBorder(0, 0, 12, 0));
-        panel.add(benefitsText);
+        gbc.insets = new Insets(0, 0, 15, 0);
+        panel.add(benefitsText, gbc);
+        gbc.gridy++;
 
-        JButton patreonBtn = createFullWidthButton("Support on Patreon", ColorScheme.BRAND_ORANGE);
+        // Patreon button
+        JButton patreonBtn = new JButton("Support on Patreon");
+        patreonBtn.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        patreonBtn.setForeground(Color.WHITE);
+        patreonBtn.setBackground(ColorScheme.BRAND_ORANGE);
+        patreonBtn.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.BRAND_ORANGE.darker(), 1),
+                new EmptyBorder(12, 20, 12, 20)));
+        patreonBtn.setFocusPainted(false);
+        patreonBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         patreonBtn.addActionListener(e -> openURL(PATREON_URL));
-        panel.add(patreonBtn);
-
-        return panel;
-    }
-
-    private JPanel createLinks() {
-        JPanel panel = createSectionContainer("Community & Help");
-
-        JButton githubBtn = createFullWidthButton("View on GitHub", ColorScheme.MEDIUM_GRAY_COLOR);
-        githubBtn.addActionListener(e -> openURL(GITHUB_URL));
-        panel.add(githubBtn);
-
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
-
-        JButton issuesBtn = createFullWidthButton("Report Issues", ColorScheme.MEDIUM_GRAY_COLOR);
-        issuesBtn.addActionListener(e -> openURL(GITHUB_URL + "/issues"));
-        panel.add(issuesBtn);
-
-        return panel;
-    }
-
-    private JPanel createDebugSection() {
-        JPanel panel = createSectionContainer("Debug Tools");
-
-        JLabel debugInfo = new JLabel("<html>Test error message display (developer mode only)</html>");
-        debugInfo.setFont(FontManager.getRunescapeFont().deriveFont(11f));
-        debugInfo.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        debugInfo.setBorder(new EmptyBorder(0, 0, 12, 0));
-        panel.add(debugInfo);
-
-        JButton testCapacityBtn = createFullWidthButton("Test Capacity Error", ColorScheme.MEDIUM_GRAY_COLOR);
-        testCapacityBtn.addActionListener(e -> ablyManager.testCapacityError());
-        panel.add(testCapacityBtn);
-
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
-
-        JButton testConnectionBtn = createFullWidthButton("Test Connection Error", ColorScheme.MEDIUM_GRAY_COLOR);
-        testConnectionBtn.addActionListener(e -> ablyManager.testConnectionError());
-        panel.add(testConnectionBtn);
         
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+        // Add hover effect
+        patreonBtn.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                patreonBtn.setBackground(ColorScheme.BRAND_ORANGE.brighter());
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                patreonBtn.setBackground(ColorScheme.BRAND_ORANGE);
+            }
+        });
         
-        JButton testUpdateBtn = createFullWidthButton("Test Update Notification", ColorScheme.MEDIUM_GRAY_COLOR);
-        testUpdateBtn.addActionListener(e -> ablyManager.testUpdateNotification());
-        panel.add(testUpdateBtn);
+        gbc.insets = new Insets(0, 0, 0, 0);
+        panel.add(patreonBtn, gbc);
 
         return panel;
     }
 
-    private JPanel createSectionContainer(String title) {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+    private JPanel createSupportersSection() {
+        JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         panel.setBorder(new CompoundBorder(
                 BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
                 new EmptyBorder(15, 15, 15, 15)));
 
-        if (title != null) {
-            JLabel titleLabel = new JLabel(title);
-            titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
-            titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
-            titleLabel.setBorder(new EmptyBorder(0, 0, 12, 0));
-            panel.add(titleLabel);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Title
+        JLabel titleLabel = new JLabel("Amazing Supporters");
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(titleLabel, gbc);
+        gbc.gridy++;
+
+        List<Supporter> supporters = supporterManager.getSupporters();
+
+        if (supporters.isEmpty()) {
+            JLabel noSupportersLabel = new JLabel("<html><i>No supporters yet - be the first!</i></html>");
+            noSupportersLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+            noSupportersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+            gbc.insets = new Insets(0, 0, 0, 0);
+            panel.add(noSupportersLabel, gbc);
+        } else {
+            // Display supporters by tier
+            for (int i = 0; i < supporters.size(); i++) {
+                Supporter supporter = supporters.get(i);
+                JPanel supporterPanel = createSupporterPanel(supporter);
+                gbc.insets = new Insets(0, 0, i == supporters.size() - 1 ? 0 : 4, 0);
+                panel.add(supporterPanel, gbc);
+                gbc.gridy++;
+            }
         }
 
         return panel;
     }
 
-    private JButton createFullWidthButton(String text, Color backgroundColor) {
-        JPanel buttonPanel = new JPanel(new BorderLayout());
-        buttonPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+    private JPanel createSupporterPanel(Supporter supporter) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        panel.setBorder(new CompoundBorder(
+            BorderFactory.createLineBorder(getTierColor(supporter.tier), 1),
+            new EmptyBorder(8, 12, 8, 12)));
 
+        JLabel nameLabel = new JLabel(supporter.getDisplayName());
+        nameLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 11f));
+        nameLabel.setForeground(Color.WHITE);
+
+        JLabel tierLabel = new JLabel(supporter.getTierDisplay());
+        tierLabel.setFont(FontManager.getRunescapeFont().deriveFont(10f));
+        tierLabel.setForeground(getTierColor(supporter.tier));
+
+        JPanel textPanel = new JPanel(new BorderLayout());
+        textPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        textPanel.add(nameLabel, BorderLayout.NORTH);
+        textPanel.add(tierLabel, BorderLayout.SOUTH);
+
+        // Add tier badge
+        JLabel badge = new JLabel(getTierBadge(supporter.tier));
+        badge.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 10f));
+        badge.setForeground(getTierColor(supporter.tier));
+
+        panel.add(textPanel, BorderLayout.CENTER);
+        panel.add(badge, BorderLayout.EAST);
+
+        return panel;
+    }
+
+    private Color getTierColor(String tier) {
+        switch (tier.toLowerCase()) {
+            case "bronze":
+                return new Color(205, 127, 50); // Bronze
+            case "silver":
+                return new Color(192, 192, 192); // Silver
+            case "gold":
+                return new Color(255, 215, 0); // Gold
+            case "platinum":
+                return new Color(229, 228, 226); // Platinum
+            default:
+                return ColorScheme.LIGHT_GRAY_COLOR;
+        }
+    }
+
+    private String getTierBadge(String tier) {
+        switch (tier.toLowerCase()) {
+            case "bronze":
+                return "★";
+            case "silver":
+                return "★★";
+            case "gold":
+                return "★★★";
+            case "platinum":
+                return "★★★★";
+            default:
+                return "★";
+        }
+    }
+
+    private JPanel createLinks() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        panel.setBorder(new CompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
+                new EmptyBorder(15, 15, 15, 15)));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Title
+        JLabel titleLabel = new JLabel("Community & Help");
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(titleLabel, gbc);
+        gbc.gridy++;
+
+        // GitHub button
+        JButton githubBtn = createStyledButton("View on GitHub", ColorScheme.MEDIUM_GRAY_COLOR);
+        githubBtn.addActionListener(e -> openURL(GITHUB_URL));
+        gbc.insets = new Insets(0, 0, 8, 0);
+        panel.add(githubBtn, gbc);
+        gbc.gridy++;
+
+        // Issues button
+        JButton issuesBtn = createStyledButton("Report Issues", ColorScheme.MEDIUM_GRAY_COLOR);
+        issuesBtn.addActionListener(e -> openURL(GITHUB_URL + "/issues"));
+        gbc.insets = new Insets(0, 0, 0, 0);
+        panel.add(issuesBtn, gbc);
+
+        return panel;
+    }
+
+    private JPanel createDebugSection() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        panel.setBorder(new CompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
+                new EmptyBorder(15, 15, 15, 15)));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Title
+        JLabel titleLabel = new JLabel("Debug Tools");
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(titleLabel, gbc);
+        gbc.gridy++;
+
+        // Debug info
+        JLabel debugInfo = new JLabel("<html>Test error message display (developer mode only)</html>");
+        debugInfo.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        debugInfo.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(debugInfo, gbc);
+        gbc.gridy++;
+
+        // Test capacity button
+        JButton testCapacityBtn = createStyledButton("Test Capacity Error", ColorScheme.MEDIUM_GRAY_COLOR);
+        testCapacityBtn.addActionListener(e -> ablyManager.testCapacityError());
+        gbc.insets = new Insets(0, 0, 8, 0);
+        panel.add(testCapacityBtn, gbc);
+        gbc.gridy++;
+
+        // Test connection button
+        JButton testConnectionBtn = createStyledButton("Test Connection Error", ColorScheme.MEDIUM_GRAY_COLOR);
+        testConnectionBtn.addActionListener(e -> ablyManager.testConnectionError());
+        gbc.insets = new Insets(0, 0, 8, 0);
+        panel.add(testConnectionBtn, gbc);
+        gbc.gridy++;
+        
+        // Test update button
+        JButton testUpdateBtn = createStyledButton("Test Update Notification", ColorScheme.MEDIUM_GRAY_COLOR);
+        testUpdateBtn.addActionListener(e -> ablyManager.testUpdateNotification());
+        gbc.insets = new Insets(0, 0, 0, 0);
+        panel.add(testUpdateBtn, gbc);
+
+        return panel;
+    }
+
+    private JPanel createSectionContainer(String title) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        panel.setBorder(new CompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
+                new EmptyBorder(15, 15, 15, 15)));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+
+        if (title != null) {
+            JLabel titleLabel = new JLabel(title);
+            titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+            titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+            gbc.insets = new Insets(0, 0, 12, 0);
+            panel.add(titleLabel, gbc);
+            gbc.gridy++;
+        }
+
+        return panel;
+    }
+
+    private JButton createStyledButton(String text, Color backgroundColor) {
         JButton button = new JButton(text);
         button.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
         button.setForeground(Color.WHITE);
