@@ -28,7 +28,6 @@ import net.runelite.client.callback.ClientThread;
 
 import com.google.inject.Provides;
 
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.inject.Inject;
@@ -43,6 +42,12 @@ import net.runelite.api.events.ClanChannelChanged;
 import net.runelite.api.events.FriendsChatChanged;
 import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.ImageUtil;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
@@ -53,7 +58,7 @@ import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
+@PluginDescriptor(name = "Global Chat", description = "Talk anywhere!", tags = {
 		"chat" })
 public class GlobalChatPlugin extends Plugin {
 	@Inject
@@ -65,6 +70,12 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	@Getter
 	private ClientThread clientThread;
+
+	@Inject
+	private ClientToolbar clientToolbar;
+
+	private GlobalChatInfoPanel infoPanel;
+	private NavigationButton navButton;
 
 	@Getter
 	@Setter
@@ -80,7 +91,6 @@ public class GlobalChatPlugin extends Plugin {
 
 	public static final int CYCLES_PER_GAME_TICK = Constants.GAME_TICK_LENGTH / Constants.CLIENT_TICK_LENGTH;
 
-
 	@Getter
 	@Setter
 	private String theGuesttheClanName;
@@ -93,27 +103,52 @@ public class GlobalChatPlugin extends Plugin {
 	@Named("developerMode")
 	private boolean developerMode;
 
+	@Inject
+	private GlobalChatConfig config;
+
+	@Inject
+	private ConfigManager configManager;
+
 	@Override
 	protected void startUp() throws Exception {
 		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
 								// nothing on initial call
 
+		// Setup info panel
+		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager);
+		log.info("Created GlobalChatInfoPanel");
+
+		// Create navigation button with simple icon
+		navButton = NavigationButton.builder()
+				.tooltip("Global Chat Info")
+				.priority(0)
+				.panel(infoPanel)
+				.icon(createSimpleIcon())
+				.build();
+
+		clientToolbar.addNavigation(navButton);
+		log.info("Added Global Chat navigation button to toolbar");
 	}
 
 	@Override
 	protected void shutDown() throws Exception {
 		ablyManager.closeConnection();
 		shouldConnect = true;
+
+		// Clean up UI panel
+		if (navButton != null) {
+			clientToolbar.removeNavigation(navButton);
+		}
 	}
 
 	@Subscribe
 	public void onWorldChanged(WorldChanged worldChanged) {
 		shouldConnect = true;
-		
+
 		// Force cleanup before reconnecting
 		ablyManager.closeConnection();
-		
+
 		// Add delay to ensure cleanup completes before reconnection
 		clientThread.invokeLater(() -> {
 			try {
@@ -196,6 +231,9 @@ public class GlobalChatPlugin extends Plugin {
 			ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
 			shouldConnect = false;
 
+			// Show update notification if not shown before
+			showUpdateNotificationIfNeeded();
+
 			return true;
 		});
 	}
@@ -269,7 +307,7 @@ public class GlobalChatPlugin extends Plugin {
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
-			
+
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 
 			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
@@ -304,7 +342,7 @@ public class GlobalChatPlugin extends Plugin {
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
-			
+
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 			FriendsChatManager friendsChatManager = client.getFriendsChatManager();
 			if (friendsChatManager != null) {
@@ -317,7 +355,7 @@ public class GlobalChatPlugin extends Plugin {
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
-			
+
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
 			ClanChannel clanChannel = client.getClanChannel();
 			if (clanChannel != null) {
@@ -330,7 +368,7 @@ public class GlobalChatPlugin extends Plugin {
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
-			
+
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
 			ClanChannel guestClanChannel = client.getGuestClanChannel();
 			if (guestClanChannel != null) {
@@ -375,7 +413,6 @@ public class GlobalChatPlugin extends Plugin {
 
 		}
 
-
 	}
 
 	@Subscribe(priority = -2) // conflicts with chat filter plugin without this priority
@@ -395,9 +432,61 @@ public class GlobalChatPlugin extends Plugin {
 
 	}
 
+	private void showUpdateNotificationIfNeeded() {
+		// Define the current version - update this when you want to show a new notification
+		String currentVersion = "v2.0.0";
+		
+		// Check if notification for this version has been shown
+		String lastNotificationVersion = config.updateNotificationShown();
+		
+		if (!currentVersion.equals(lastNotificationVersion)) {
+			// Show the update notification
+			clientThread.invokeLater(() -> {
+				try {
+					Thread.sleep(2000); // Wait 2 seconds after login
+					
+					// Show in-game chat message
+					ablyManager.showUpdateNotification(
+						"<col=00ff00>Global Chat v2.0 is here!</col> " +
+						"New: Better error handling, redesigned info panel, spam prevention, and cost optimizations. " +
+						"<col=ff9040>Support on Patreon to increase service limits!</col>"
+					);
+					
+					// Mark this version as notified
+					configManager.setConfiguration("globalchat", "updateNotificationShown", currentVersion);
+					
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				return true;
+			});
+		}
+	}
+
 	@Provides
 	GlobalChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(GlobalChatConfig.class);
+	}
+
+	private BufferedImage createSimpleIcon() {
+		BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g2 = image.createGraphics();
+		g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+
+		// Simple chat bubble icon
+		g2.setColor(Color.WHITE);
+		g2.fillOval(2, 2, 12, 10);
+		g2.setColor(Color.BLACK);
+		g2.drawOval(2, 2, 12, 10);
+
+		// Chat bubble tail
+		g2.setColor(Color.WHITE);
+		g2.fillPolygon(new int[] { 6, 8, 10 }, new int[] { 12, 14, 12 }, 3);
+		g2.setColor(Color.BLACK);
+		g2.drawPolygon(new int[] { 6, 8, 10 }, new int[] { 12, 14, 12 }, 3);
+
+		g2.dispose();
+		return image;
 	}
 
 	// @Subscribe(priority = -2)
@@ -451,6 +540,5 @@ public class GlobalChatPlugin extends Plugin {
 
 	// }
 	// }
-
 
 }

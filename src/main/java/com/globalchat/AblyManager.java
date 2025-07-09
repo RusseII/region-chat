@@ -32,6 +32,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import javax.inject.Named;
 import io.ably.lib.realtime.AblyRealtime;
 import io.ably.lib.realtime.Channel;
 import io.ably.lib.realtime.ChannelState;
@@ -61,6 +62,8 @@ import net.runelite.api.Player;
 import net.runelite.api.Constants;
 import net.runelite.api.Friend;
 import lombok.extern.slf4j.Slf4j;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 
 @Slf4j
 @Singleton
@@ -87,16 +90,20 @@ public class AblyManager {
 	ChatMessageManager chatMessageManager;
 
 	private final GlobalChatConfig config;
+	private final boolean developerMode;
 
 	private AblyRealtime ablyRealtime;
 	private volatile boolean isConnecting = false;
 	private final Map<String, Long> channelLastActivity = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
+	private long lastErrorMessageTime = 0;
+	private static final long ERROR_MESSAGE_COOLDOWN = 300000; // 5 minutes
 
 	@Inject
-	public AblyManager(Client client, GlobalChatConfig config) {
+	public AblyManager(Client client, GlobalChatConfig config, @Named("developerMode") boolean developerMode) {
 		this.client = client;
 		this.config = config;
+		this.developerMode = developerMode;
 	}
 
 	public void startConnection() {
@@ -121,6 +128,8 @@ public class AblyManager {
 		isConnecting = true;
 		try {
 			setupAblyInstances();
+		} catch (Exception e) {
+			handleAblyError(e);
 		} finally {
 			isConnecting = false;
 		}
@@ -316,7 +325,8 @@ public class AblyManager {
 					.add("message", message).add("type", t).add("to", to).toJson();
 			currentChannel.publish("event", msg);
 		} catch (AblyException err) {
-			log.error("error", err);
+			log.error("Ably publish error", err);
+			handleAblyError(err);
 		}
 	}
 
@@ -509,6 +519,7 @@ public class AblyManager {
 			
 		} catch (AblyException e) {
 			log.error("Failed to setup Ably connection", e);
+			handleAblyError(e);
 		}
 	}
 
@@ -538,7 +549,8 @@ public class AblyManager {
 			
 			return currentChannel;
 		} catch (AblyException err) {
-			log.error("error", err);
+			log.error("Ably subscribe error", err);
+			handleAblyError(err);
 		}
 		return null;
 
@@ -558,5 +570,100 @@ public class AblyManager {
 		}
 
 		return "";
+	}
+	
+	// Debug methods to test error dialogs (only available in developer mode)
+	public void testCapacityError() {
+		if (developerMode) {
+			log.info("Testing capacity error dialog (developer mode)");
+			showInGameErrorMessage(
+				"<col=ff9040>[DEBUG] Global Chat is at capacity!</col> " +
+				"The plugin has reached its usage limits. " +
+				"<col=00ff00>Support on Patreon to help increase limits!</col>"
+			);
+		}
+	}
+	
+	public void testConnectionError() {
+		if (developerMode) {
+			log.info("Testing connection error dialog (developer mode)");
+			showInGameErrorMessage(
+				"<col=ff0000>[DEBUG] Global Chat connection error!</col> " +
+				"Service may be temporarily unavailable. Try again later."
+			);
+		}
+	}
+	
+	public void testUpdateNotification() {
+		if (developerMode) {
+			log.info("Testing update notification (developer mode)");
+			showUpdateNotification(
+				"<col=00ff00>Global Chat v2.0 is here!</col> " +
+				"New: Better error handling, redesigned info panel, spam prevention, and cost optimizations. " +
+				"<col=ff9040>Support on Patreon to increase service limits!</col>"
+			);
+		}
+	}
+	
+	private void handleAblyError(Exception e) {
+		String errorMessage = e.getMessage();
+		if (errorMessage == null) {
+			errorMessage = e.getClass().getSimpleName();
+		}
+		
+		// Check for common limit-related errors
+		if (errorMessage.contains("limit") || 
+			errorMessage.contains("quota") || 
+			errorMessage.contains("exceeded") ||
+			errorMessage.contains("capacity") ||
+			errorMessage.contains("rate") ||
+			e instanceof AblyException && ((AblyException) e).errorInfo != null && 
+			(((AblyException) e).errorInfo.code == 40005 || // Connection limit
+			 ((AblyException) e).errorInfo.code == 40006 || // Message limit
+			 ((AblyException) e).errorInfo.code == 40007)) { // Channel limit
+			
+			// Show in-game chat message with rate limiting
+			showInGameErrorMessage(
+				"<col=ff9040>Global Chat is at capacity!</col> " +
+				"The plugin has reached its usage limits. " +
+				"<col=00ff00>Support on Patreon to help increase limits!</col>"
+			);
+		} else {
+			// For other errors, show a generic connection error
+			showInGameErrorMessage(
+				"<col=ff0000>Global Chat connection error!</col> " +
+				"Service may be temporarily unavailable. Try again later."
+			);
+		}
+	}
+	
+	private void showInGameErrorMessage(String message) {
+		// Rate limiting: only show error messages every 5 minutes to prevent spam
+		long now = System.currentTimeMillis();
+		if (now - lastErrorMessageTime < ERROR_MESSAGE_COOLDOWN) {
+			log.debug("Error message rate limited, skipping");
+			return;
+		}
+		
+		if (client.getGameState() == GameState.LOGGED_IN) {
+			lastErrorMessageTime = now;
+			log.info("Sending error message to chat");
+			
+			chatMessageManager.queue(QueuedMessage.builder()
+				.type(ChatMessageType.GAMEMESSAGE)
+				.runeLiteFormattedMessage(message)
+				.build());
+		}
+	}
+	
+	public void showUpdateNotification(String message) {
+		if (client.getGameState() == GameState.LOGGED_IN) {
+			log.info("Showing update notification");
+			
+			chatMessageManager.queue(QueuedMessage.builder()
+				.type(ChatMessageType.GAMEMESSAGE)
+				.runeLiteFormattedMessage(message)
+				.build());
+		}
 	}
 }
