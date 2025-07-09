@@ -29,7 +29,6 @@ import net.runelite.client.callback.ClientThread;
 
 import com.google.inject.Provides;
 
-import io.ably.lib.types.Callback.Map;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,35 +37,21 @@ import javax.inject.Named;
 import lombok.Getter;
 import lombok.Setter;
 import net.runelite.api.*;
+import net.runelite.api.clan.ClanChannel;
 import net.runelite.api.events.WorldChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ClanChannelChanged;
-import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.FriendsChatChanged;
 import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.events.GameTick;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
-import static net.runelite.api.MenuAction.ITEM_USE_ON_PLAYER;
-import static net.runelite.api.MenuAction.PLAYER_EIGHTH_OPTION;
-import static net.runelite.api.MenuAction.PLAYER_FIFTH_OPTION;
-import static net.runelite.api.MenuAction.PLAYER_FIRST_OPTION;
-import static net.runelite.api.MenuAction.PLAYER_FOURTH_OPTION;
-import static net.runelite.api.MenuAction.PLAYER_SECOND_OPTION;
-import static net.runelite.api.MenuAction.PLAYER_SEVENTH_OPTION;
-import static net.runelite.api.MenuAction.PLAYER_SIXTH_OPTION;
-import static net.runelite.api.MenuAction.PLAYER_THIRD_OPTION;
-import static net.runelite.api.MenuAction.RUNELITE_PLAYER;
-import static net.runelite.api.MenuAction.WALK;
-import static net.runelite.api.MenuAction.WIDGET_TARGET_ON_PLAYER;
 
 @Slf4j
 @PluginDescriptor(name = "World Global Chat", description = "Talk anywhere!", tags = {
@@ -96,8 +81,6 @@ public class GlobalChatPlugin extends Plugin {
 
 	public static final int CYCLES_PER_GAME_TICK = Constants.GAME_TICK_LENGTH / Constants.CLIENT_TICK_LENGTH;
 
-	private static final int OVERHEAD_TEXT_TICK_TIMEOUT = 5;
-	private static final int CYCLES_FOR_OVERHEAD_TEXT = OVERHEAD_TEXT_TICK_TIMEOUT * CYCLES_PER_GAME_TICK;
 
 	@Getter
 	@Setter
@@ -145,16 +128,24 @@ public class GlobalChatPlugin extends Plugin {
 	@Subscribe
 	public void onFriendsChatMemberJoined(FriendsChatMemberJoined event) {
 		final FriendsChatMember member = event.getMember();
+		if (member == null || member.getName() == null) {
+			return;
+		}
 		String memberName = member.getName().replace('\u00A0', ' ').trim();
-		String playerName = client.getLocalPlayer().getName().replace('\u00A0', ' ').trim();
-		;
+		Player localPlayer = client.getLocalPlayer();
+		if (localPlayer == null || localPlayer.getName() == null) {
+			return;
+		}
+		String playerName = localPlayer.getName().replace('\u00A0', ' ').trim();
 
 		Boolean isCurrentUser = memberName.equals(playerName);
 
 		if (isCurrentUser) {
 			FriendsChatManager friendsChatManager = client.getFriendsChatManager();
-			friendsChat = friendsChatManager.getOwner();
-			ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
+			if (friendsChatManager != null) {
+				friendsChat = friendsChatManager.getOwner();
+				ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
+			}
 		}
 	}
 
@@ -217,8 +208,9 @@ public class GlobalChatPlugin extends Plugin {
 
 	@Subscribe
 	public void onClanChannelChanged(ClanChannelChanged event) {
-		boolean inClanNow = event.getClanChannel() != null;
-		String channelName = inClanNow ? event.getClanChannel().getName() : null;
+		ClanChannel clanChannel = event.getClanChannel();
+		boolean inClanNow = clanChannel != null;
+		String channelName = (inClanNow && clanChannel != null) ? clanChannel.getName() : null;
 		boolean isGuest = event.isGuest();
 
 		if (!inClanNow) {
@@ -294,18 +286,27 @@ public class GlobalChatPlugin extends Plugin {
 			lineBuffer.removeMessageNode(event.getMessageNode());
 		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && isLocalPlayerSendingMessage) {
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
-			ablyManager.publishMessage("f", cleanedMessage, "f:" + friendsChat,
-					client.getFriendsChatManager().getName());
+			FriendsChatManager friendsChatManager = client.getFriendsChatManager();
+			if (friendsChatManager != null) {
+				ablyManager.publishMessage("f", cleanedMessage, "f:" + friendsChat,
+						friendsChatManager.getName());
+			}
 		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT)
 				&& isLocalPlayerSendingMessage) {
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
-			ablyManager.publishMessage("c", cleanedMessage, "c:" + client.getClanChannel().getName(),
-					client.getClanChannel().getName());
+			ClanChannel clanChannel = client.getClanChannel();
+			if (clanChannel != null) {
+				ablyManager.publishMessage("c", cleanedMessage, "c:" + clanChannel.getName(),
+						clanChannel.getName());
+			}
 		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT)
 				&& isLocalPlayerSendingMessage) {
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
-			ablyManager.publishMessage("c", cleanedMessage, "c:" + client.getGuestClanChannel().getName(),
-					client.getGuestClanChannel().getName());
+			ClanChannel guestClanChannel = client.getGuestClanChannel();
+			if (guestClanChannel != null) {
+				ablyManager.publishMessage("c", cleanedMessage, "c:" + guestClanChannel.getName(),
+						guestClanChannel.getName());
+			}
 		} else {
 
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
@@ -319,18 +320,21 @@ public class GlobalChatPlugin extends Plugin {
 
 			int[] intStack = client.getIntStack();
 			int intStackSize = client.getIntStackSize();
-			String[] stringStack = (String[]) client.getObjectStack();
-			int stringStackSize = client.getObjectStackSize();
-
 			// Extract the message type and message content from the event.
 			final int messageType = intStack[intStackSize - 2];
 			final int messageId = intStack[intStackSize - 1];
-			String message = stringStack[stringStackSize - 1];
 
 			final MessageNode messageNode = client.getMessages().get(messageId);
 			final String name = messageNode.getName();
+			if (name == null) {
+				return;
+			}
 			String cleanedName = Text.sanitize(name);
-			boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
+			Player localPlayer = client.getLocalPlayer();
+			if (localPlayer == null || localPlayer.getName() == null) {
+				return;
+			}
+			boolean isLocalPlayerSendingMessage = cleanedName.equals(localPlayer.getName());
 
 			boolean shouldConsiderHiding = !isLocalPlayerSendingMessage
 					&& ChatMessageType.of(messageType) == ChatMessageType.PUBLICCHAT;
@@ -365,7 +369,11 @@ public class GlobalChatPlugin extends Plugin {
 		if (!(event.getActor() instanceof Player) || event.getActor().getName() == null)
 			return;
 		String cleanedName = Text.sanitize(event.getActor().getName());
-		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
+		Player localPlayer = client.getLocalPlayer();
+		if (localPlayer == null || localPlayer.getName() == null) {
+			return;
+		}
+		boolean isLocalPlayerSendingMessage = cleanedName.equals(localPlayer.getName());
 
 		if (!isLocalPlayerSendingMessage && ablyManager.isUnderCbLevel(cleanedName)) {
 			event.getActor().setOverheadText("");
