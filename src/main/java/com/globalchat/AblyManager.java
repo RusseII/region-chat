@@ -89,6 +89,9 @@ public class AblyManager {
 	private final GlobalChatConfig config;
 
 	private AblyRealtime ablyRealtime;
+	private volatile boolean isConnecting = false;
+	private final Map<String, Long> channelLastActivity = new HashMap<>();
+	private final Map<String, Long> lastMessageTime = new HashMap<>();
 
 	@Inject
 	public AblyManager(Client client, GlobalChatConfig config) {
@@ -97,20 +100,85 @@ public class AblyManager {
 	}
 
 	public void startConnection() {
-		setupAblyInstances();
+		// Prevent multiple concurrent connections
+		if (isConnecting) {
+			log.info("Connection already in progress, skipping");
+			return;
+		}
+		
+		// Check if already connected
+		if (ablyRealtime != null) {
+			try {
+				if (ablyRealtime.connection.state == io.ably.lib.realtime.ConnectionState.connected) {
+					log.info("Already connected, skipping");
+					return;
+				}
+			} catch (Exception e) {
+				log.debug("Error checking connection state", e);
+			}
+		}
+		
+		isConnecting = true;
+		try {
+			setupAblyInstances();
+		} finally {
+			isConnecting = false;
+		}
 	}
 
 	public void closeSpecificChannel(String channelName) {
 		try {
 			ablyRealtime.channels.get(channelName).detach();
+			channelLastActivity.remove(channelName);
 		} catch (AblyException err) {
 			log.error("error", err);
 		}
 	}
+	
+	public void cleanupInactiveChannels() {
+		if (ablyRealtime == null) return;
+		
+		long now = System.currentTimeMillis();
+		channelLastActivity.entrySet().removeIf(entry -> {
+			if (now - entry.getValue() > 300000) { // 5 minutes
+				try {
+					ablyRealtime.channels.get(entry.getKey()).detach();
+					log.info("Cleaned up inactive channel: " + entry.getKey());
+				} catch (Exception e) {
+					log.debug("Error cleaning up channel: " + entry.getKey(), e);
+				}
+				return true;
+			}
+			return false;
+		});
+	}
+	
+	private void markChannelActive(String channelName) {
+		channelLastActivity.put(channelName, System.currentTimeMillis());
+	}
 
 	public void closeConnection() {
-		ablyRealtime.close();
-		ablyRealtime = null;
+		if (ablyRealtime != null) {
+			try {
+				// Explicitly close all channels first
+				try {
+					// Just force close - channel iteration not available in this API
+					log.info("Forcing connection close");
+				} catch (Exception e) {
+					log.debug("Error during channel cleanup", e);
+				}
+				
+				// Force close connection
+				ablyRealtime.close();
+				
+				log.info("Connection properly closed");
+				
+			} catch (Exception e) {
+				log.error("Error closing connection", e);
+			} finally {
+				ablyRealtime = null;
+			}
+		}
 	}
 
 	public boolean isUnderCbLevel(String username) {
@@ -254,6 +322,8 @@ public class AblyManager {
 
 	public void handleMessage(Message message) {
 		if (client.getGameState() == GameState.LOGGED_IN) {
+			// Mark channel as active when receiving messages
+			markChannelActive(message.name);
 			handleAblyMessage(message);
 		}
 	}
@@ -361,6 +431,22 @@ public class AblyManager {
 		if (isUnderCbLevel(name)) {
 			return false;
 		}
+		
+		// Rate limiting: prevent spam by limiting message frequency
+		if (!canSendMessage(name)) {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	private boolean canSendMessage(String user) {
+		long now = System.currentTimeMillis();
+		Long lastTime = lastMessageTime.get(user);
+		if (lastTime != null && now - lastTime < 100) { // 100ms cooldown
+			return false;
+		}
+		lastMessageTime.put(user, now);
 		return true;
 	}
 
@@ -389,10 +475,30 @@ public class AblyManager {
 			};
 			clientOptions.authHeaders = params;
 			clientOptions.authUrl = "https://global-chat-plugin.vercel.app/api/token";
-
+			
+			// Critical: Disable echo messages to reduce message count by 50%
+			clientOptions.echoMessages = false;
+			
+			// Connection timeouts not available in this Ably version
+			// Will rely on default timeout behavior
+			
 			ablyRealtime = new AblyRealtime(clientOptions);
+			
+			// Add connection state monitoring
+			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.disconnected, state -> {
+				log.warn("Connection disconnected: " + state.reason);
+			});
+			
+			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.failed, state -> {
+				log.error("Connection failed: " + state.reason);
+			});
+			
+			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.connected, state -> {
+				log.info("Connection established successfully");
+			});
+			
 		} catch (AblyException e) {
-			e.printStackTrace();
+			log.error("Failed to setup Ably connection", e);
 		}
 	}
 
@@ -416,6 +522,10 @@ public class AblyManager {
 			ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
 			Channel currentChannel = ablyRealtime.channels.get(channelName, options);
 			currentChannel.subscribe(this::handleMessage);
+			
+			// Mark channel as active for cleanup tracking
+			markChannelActive(channelName);
+			
 			return currentChannel;
 		} catch (AblyException err) {
 			log.error("error", err);
