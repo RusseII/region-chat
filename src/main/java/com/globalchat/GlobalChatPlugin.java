@@ -266,7 +266,7 @@ public class GlobalChatPlugin extends Plugin {
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
 		if (isPublic && isLocalPlayerSendingMessage) {
 			// Check for spam BEFORE publishing to save costs
-			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
 			
@@ -301,7 +301,7 @@ public class GlobalChatPlugin extends Plugin {
 			lineBuffer.removeMessageNode(event.getMessageNode());
 		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && isLocalPlayerSendingMessage) {
 			// Check for spam BEFORE publishing to save costs
-			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
 			
@@ -314,7 +314,7 @@ public class GlobalChatPlugin extends Plugin {
 		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT)
 				&& isLocalPlayerSendingMessage) {
 			// Check for spam BEFORE publishing to save costs
-			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
 			
@@ -327,7 +327,7 @@ public class GlobalChatPlugin extends Plugin {
 		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT)
 				&& isLocalPlayerSendingMessage) {
 			// Check for spam BEFORE publishing to save costs
-			if (!ablyManager.shouldShowCurrentMessage(cleanedMessage, cleanedName)) {
+			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return; // Don't publish spam messages
 			}
 			

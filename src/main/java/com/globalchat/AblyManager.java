@@ -420,17 +420,27 @@ public class AblyManager {
 	}
 
 	public boolean shouldShowCurrentMessage(String message, String name) {
-		if (config.hideSpamMessages()) {
-			if (isSpam(message)) {
-				return false;
-			}
-		}
+		// Spam is now blocked at publish time, so no need to check here
 		if (isInvalidUsername(name))
 			return false;
 
 		if (isUnderCbLevel(name)) {
 			return false;
 		}
+		
+		return true;
+	}
+	
+	// New method: Only check spam and rate limiting for publishers
+	// Always filter spam and invalid usernames regardless of user settings
+	public boolean shouldPublishMessage(String message, String name) {
+		// Always block spam messages from being published (saves money)
+		if (isSpam(message)) {
+			return false;
+		}
+		
+		if (isInvalidUsername(name))
+			return false;
 		
 		// Rate limiting: prevent spam by limiting message frequency
 		if (!canSendMessage(name)) {
