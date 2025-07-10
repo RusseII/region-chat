@@ -161,12 +161,8 @@ public class GlobalChatPlugin extends Plugin {
 		ablyManager.closeConnection();
 
 		// Add delay to ensure cleanup completes before reconnection
+		// Reconnect on next game tick to avoid race conditions
 		clientThread.invokeLater(() -> {
-			try {
-				Thread.sleep(1000); // 1 second delay
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-			}
 			ablyManager.startConnection();
 			return true;
 		});
@@ -444,31 +440,25 @@ public class GlobalChatPlugin extends Plugin {
 	}
 
 	private void showUpdateNotificationIfNeeded() {
-		// Define the current version - update this when you want to show a new notification
+		// Define the current version - update this when you want to show a new
+		// notification
 		String currentVersion = "v2.0.0";
-		
+
 		// Check if notification for this version has been shown
 		String lastNotificationVersion = config.updateNotificationShown();
-		
+
 		if (!currentVersion.equals(lastNotificationVersion)) {
-			// Show the update notification
+			// Show the update notification on next tick
 			clientThread.invokeLater(() -> {
-				try {
-					Thread.sleep(2000); // Wait 2 seconds after login
-					
-					// Show in-game chat message
-					ablyManager.showUpdateNotification(
+				// Show in-game chat message
+				ablyManager.showUpdateNotification(
 						"<col=00ff00>Global Chat v2.0 is here!</col> " +
-						"New: Better error handling, redesigned info panel, spam prevention, and cost optimizations. " +
-						"<col=ff9040>Support on Patreon to increase service limits!</col>"
-					);
-					
-					// Mark this version as notified
-					configManager.setConfiguration("globalchat", "updateNotificationShown", currentVersion);
-					
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-				}
+								"New: Better error handling, redesigned info panel, spam prevention, and cost optimizations. "
+								+
+								"<col=ff9040>Support on Patreon to increase service limits!</col>");
+
+				// Mark this version as notified
+				configManager.setConfiguration("globalchat", "updateNotificationShown", currentVersion);
 				return true;
 			});
 		}
@@ -483,7 +473,7 @@ public class GlobalChatPlugin extends Plugin {
 		try {
 			// Load the icon from project root
 			BufferedImage image = ImageIO.read(new java.io.File("icon.png"));
-			
+
 			// Resize to 16x16 if needed
 			if (image.getWidth() != 16 || image.getHeight() != 16) {
 				BufferedImage resized = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
@@ -493,7 +483,7 @@ public class GlobalChatPlugin extends Plugin {
 				g2.dispose();
 				return resized;
 			}
-			
+
 			return image;
 		} catch (Exception e) {
 			log.error("Failed to load icon from project root", e);
