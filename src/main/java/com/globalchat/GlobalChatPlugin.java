@@ -327,37 +327,35 @@ public class GlobalChatPlugin extends Plugin {
 
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 
+			// Modify message to include icons if not in read-only mode and connected
+			if (!config.readOnlyMode() && ablyManager.isConnected()) {
+				// Remove the original message
+				final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
+				lineBuffer.removeMessageNode(event.getMessageNode());
+				
+				// Get icons (match the format used for received messages)
+				String accountIcon = getAccountIcon();
+				String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
+				String symbol = accountIcon; // Start with account icon
+				
+				// Add supporter icon if user is a supporter
+				if (!supporterIcon.isEmpty()) {
+					if (symbol.isEmpty()) {
+						symbol = supporterIcon;
+					} else {
+						symbol = supporterIcon + " " + symbol;
+					}
+				}
+				
+				// Add global chat icon
+				symbol = "<img=19> " + symbol;
+				
+				// Re-add the message with icons
+				client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
+			}
+			
 			// Publish to global chat
 			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
-			
-			// Add icons to sender's own message only if not in read-only mode
-			if (!config.readOnlyMode()) {
-				clientThread.invokeLater(() -> {
-					// Remove the original message
-					final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
-					lineBuffer.removeMessageNode(event.getMessageNode());
-					
-					// Get icons
-					String accountIcon = getAccountIcon();
-					String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
-					String symbol = "<img=19> "; // Global chat icon
-					
-					// Add supporter icon if user is a supporter
-					if (!supporterIcon.isEmpty()) {
-						symbol += supporterIcon + " ";
-					}
-					
-					// Add account type icon
-					if (!accountIcon.isEmpty()) {
-						symbol += accountIcon;
-					}
-					
-					// Re-add the message with icons
-					client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
-					
-					return true;
-				});
-			}
 			// Disable functality for publishing direct messages
 			// } else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
 			// ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
