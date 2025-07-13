@@ -62,8 +62,6 @@ import net.runelite.api.Player;
 import net.runelite.api.Constants;
 import net.runelite.api.Friend;
 import lombok.extern.slf4j.Slf4j;
-import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
 
 @Slf4j
 @Singleton
@@ -84,8 +82,6 @@ public class AblyManager {
 	private final Map<String, String> previousMessages = new HashMap<>();
 
 	private final HashMap<String, Integer> playerCombats = new HashMap<>();
-
-	private boolean changingChannels;
 
 	@Inject
 	ChatMessageManager chatMessageManager;
@@ -311,8 +307,8 @@ public class AblyManager {
 				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
 				ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
 				currentChannel = ablyRealtime.channels.get(channel, options);
-
 			}
+			
 			if (client.getLocalPlayer() == null) {
 				return;
 			}
@@ -325,6 +321,7 @@ public class AblyManager {
 					.add("symbol", getAccountIcon())
 					.add("username", username)
 					.add("message", message).add("type", t).add("to", to).toJson();
+			
 			currentChannel.publish("event", msg);
 		} catch (AblyException err) {
 			log.error("Ably publish error", err);
@@ -365,7 +362,8 @@ public class AblyManager {
 
 		GlobalChatMessage msg = gson.fromJson((JsonElement) message.data, GlobalChatMessage.class);
 		String username = Text.removeTags(msg.username);
-		String receivedMsg = Text.removeTags(msg.message);
+		String receivedMsg = Text.removeTags(msg.message); // Clean message for display
+		
 		if (!shouldShowMessge(username, receivedMsg, false)) {
 			return;
 		}
@@ -389,12 +387,13 @@ public class AblyManager {
 			symbol = "<img=19> " + symbol;
 		}
 
-		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
-				.append(receivedMsg);
-
 		if (username.length() > 12) {
 			return;
 		}
+		
+		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
+				.append(receivedMsg);
+		
 		if (msg.type.equals("p") && !username.equals(client.getLocalPlayer().getName())
 				&& msg.to.equals(client.getLocalPlayer().getName())) {
 
@@ -447,6 +446,7 @@ public class AblyManager {
 	private boolean isInvalidUsername(String username) {
 		return username.toLowerCase().startsWith("mod ");
 	}
+	
 
 	public boolean shouldShowCurrentMessage(String message, String name) {
 		// Spam is now blocked at publish time, so no need to check here
