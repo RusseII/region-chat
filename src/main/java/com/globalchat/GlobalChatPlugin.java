@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import javax.inject.Inject;
 import javax.inject.Named;
-import okhttp3.OkHttpClient;
 import lombok.Getter;
 import lombok.Setter;
 import net.runelite.api.*;
@@ -161,8 +160,12 @@ public class GlobalChatPlugin extends Plugin {
 		// Force cleanup before reconnecting
 		ablyManager.closeConnection();
 
-		// Start connection directly without unnecessary delay
-		ablyManager.startConnection();
+		// Use clientThread because AblyManager#startConnection needs client.getLocalPlayer().getName()
+		// The delay also helps avoid race conditions with connection cleanup
+		clientThread.invokeLater(() -> {
+			ablyManager.startConnection();
+			return true;
+		});
 	}
 
 	@Subscribe
@@ -460,14 +463,6 @@ public class GlobalChatPlugin extends Plugin {
 	@Provides
 	GlobalChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(GlobalChatConfig.class);
-	}
-
-	@Provides
-	OkHttpClient provideOkHttpClient() {
-		return new OkHttpClient.Builder()
-				.connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-				.readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-				.build();
 	}
 
 	private BufferedImage createSimpleIcon() {

@@ -24,8 +24,8 @@ public class SupporterManager {
     private static final long REFRESH_INTERVAL_MINUTES = 10;
 
     private final Gson gson;
-    private final ScheduledExecutorService scheduler;
     private final OkHttpClient httpClient;
+    private final ScheduledExecutorService scheduler;
     private List<Supporter> supporters = new ArrayList<>();
     private int totalSupport = 0;
     private String lastUpdated = "";
@@ -101,14 +101,10 @@ public class SupporterManager {
                         .build();
 
                 try (Response response = httpClient.newCall(request).execute()) {
-                    if (response.isSuccessful()) {
-                        if (response.body() != null) {
-                            String responseBody = response.body().string();
-                            parseSupportersResponse(responseBody);
-                            log.debug("Successfully fetched {} supporters", supporters.size());
-                        } else {
-                            log.warn("Response body is null");
-                        }
+                    if (response.isSuccessful() && response.body() != null) {
+                        String responseBody = response.body().string();
+                        parseSupportersResponse(responseBody);
+                        log.debug("Successfully fetched {} supporters", supporters.size());
                     } else {
                         log.warn("Failed to fetch supporters: HTTP {}", response.code());
                     }
