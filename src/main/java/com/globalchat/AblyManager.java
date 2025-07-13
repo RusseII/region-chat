@@ -111,7 +111,7 @@ public class AblyManager {
 	public void startConnection() {
 		// Prevent multiple concurrent connections
 		if (isConnecting) {
-			log.info("Connection already in progress, skipping");
+			log.debug("Connection already in progress, skipping");
 			return;
 		}
 		
@@ -119,7 +119,7 @@ public class AblyManager {
 		if (ablyRealtime != null) {
 			try {
 				if (ablyRealtime.connection.state == io.ably.lib.realtime.ConnectionState.connected) {
-					log.info("Already connected, skipping");
+					log.debug("Already connected, skipping");
 					return;
 				}
 			} catch (Exception e) {
@@ -154,7 +154,7 @@ public class AblyManager {
 			if (now - entry.getValue() > 300000) { // 5 minutes
 				try {
 					ablyRealtime.channels.get(entry.getKey()).detach();
-					log.info("Cleaned up inactive channel: " + entry.getKey());
+					log.debug("Cleaned up inactive channel: " + entry.getKey());
 				} catch (Exception e) {
 					log.debug("Error cleaning up channel: " + entry.getKey(), e);
 				}
@@ -174,7 +174,7 @@ public class AblyManager {
 				// Explicitly close all channels first
 				try {
 					// Just force close - channel iteration not available in this API
-					log.info("Forcing connection close");
+					log.debug("Forcing connection close");
 				} catch (Exception e) {
 					log.debug("Error during channel cleanup", e);
 				}
@@ -182,7 +182,7 @@ public class AblyManager {
 				// Force close connection
 				ablyRealtime.close();
 				
-				log.info("Connection properly closed");
+				log.debug("Connection properly closed");
 				
 			} catch (Exception e) {
 				log.error("Error closing connection", e);
@@ -533,7 +533,7 @@ public class AblyManager {
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.connected, state -> {
-				log.info("Connection established successfully");
+				log.debug("Connection established successfully");
 			});
 			
 		} catch (AblyException e) {
@@ -594,7 +594,7 @@ public class AblyManager {
 	// Debug methods to test error dialogs (only available in developer mode)
 	public void testCapacityError() {
 		if (developerMode) {
-			log.info("Testing capacity error dialog (developer mode)");
+			log.debug("Testing capacity error dialog (developer mode)");
 			showInGameErrorMessage(
 				"<col=ff9040>[DEBUG] Global Chat is at capacity!</col> " +
 				"The plugin has reached its usage limits. " +
@@ -605,7 +605,7 @@ public class AblyManager {
 	
 	public void testConnectionError() {
 		if (developerMode) {
-			log.info("Testing connection error dialog (developer mode)");
+			log.debug("Testing connection error dialog (developer mode)");
 			showInGameErrorMessage(
 				"<col=ff0000>[DEBUG] Global Chat connection error!</col> " +
 				"Service may be temporarily unavailable. Try again later."
@@ -615,7 +615,7 @@ public class AblyManager {
 	
 	public void testUpdateNotification() {
 		if (developerMode) {
-			log.info("Testing update notification (developer mode)");
+			log.debug("Testing update notification (developer mode)");
 			showUpdateNotification(
 				"<col=00ff00>Global Chat v2.0 is here!</col> " +
 				"New: Better error handling, redesigned info panel, spam prevention, and cost optimizations. " +
@@ -666,7 +666,7 @@ public class AblyManager {
 		
 		if (client.getGameState() == GameState.LOGGED_IN) {
 			lastErrorMessageTime = now;
-			log.info("Sending error message to chat");
+			log.debug("Sending error message to chat");
 			
 			chatMessageManager.queue(QueuedMessage.builder()
 				.type(ChatMessageType.GAMEMESSAGE)
@@ -677,7 +677,7 @@ public class AblyManager {
 	
 	public void showUpdateNotification(String message) {
 		if (client.getGameState() == GameState.LOGGED_IN) {
-			log.info("Showing update notification");
+			log.debug("Showing update notification");
 			
 			chatMessageManager.queue(QueuedMessage.builder()
 				.type(ChatMessageType.GAMEMESSAGE)

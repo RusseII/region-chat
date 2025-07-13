@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import javax.inject.Inject;
 import javax.inject.Named;
+import okhttp3.OkHttpClient;
 import lombok.Getter;
 import lombok.Setter;
 import net.runelite.api.*;
@@ -123,7 +124,7 @@ public class GlobalChatPlugin extends Plugin {
 
 		// Setup info panel
 		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager);
-		log.info("Created GlobalChatInfoPanel");
+		log.debug("Created GlobalChatInfoPanel");
 
 		// Create navigation button with simple icon
 		navButton = NavigationButton.builder()
@@ -134,7 +135,7 @@ public class GlobalChatPlugin extends Plugin {
 				.build();
 
 		clientToolbar.addNavigation(navButton);
-		log.info("Added Global Chat navigation button to toolbar");
+		log.debug("Added Global Chat navigation button to toolbar");
 	}
 
 	@Override
@@ -160,12 +161,8 @@ public class GlobalChatPlugin extends Plugin {
 		// Force cleanup before reconnecting
 		ablyManager.closeConnection();
 
-		// Add delay to ensure cleanup completes before reconnection
-		// Reconnect on next game tick to avoid race conditions
-		clientThread.invokeLater(() -> {
-			ablyManager.startConnection();
-			return true;
-		});
+		// Start connection directly without unnecessary delay
+		ablyManager.startConnection();
 	}
 
 	@Subscribe
@@ -448,25 +445,29 @@ public class GlobalChatPlugin extends Plugin {
 		String lastNotificationVersion = config.updateNotificationShown();
 
 		if (!currentVersion.equals(lastNotificationVersion)) {
-			// Show the update notification on next tick
-			clientThread.invokeLater(() -> {
-				// Show in-game chat message
-				ablyManager.showUpdateNotification(
-						"<col=00ff00>Global Chat v2.0 is here!</col> " +
-								"New: Better error handling, redesigned info panel, spam prevention, and cost optimizations. "
-								+
-								"<col=ff9040>Support on Patreon to increase service limits!</col>");
+			// Show in-game chat message directly
+			ablyManager.showUpdateNotification(
+					"<col=00ff00>Global Chat v2.0 is here!</col> " +
+							"New: Better error handling, redesigned info panel, spam prevention, and cost optimizations. "
+							+
+							"<col=ff9040>Support on Patreon to increase service limits!</col>");
 
-				// Mark this version as notified
-				configManager.setConfiguration("globalchat", "updateNotificationShown", currentVersion);
-				return true;
-			});
+			// Mark this version as notified
+			configManager.setConfiguration("globalchat", "updateNotificationShown", currentVersion);
 		}
 	}
 
 	@Provides
 	GlobalChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(GlobalChatConfig.class);
+	}
+
+	@Provides
+	OkHttpClient provideOkHttpClient() {
+		return new OkHttpClient.Builder()
+				.connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+				.readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+				.build();
 	}
 
 	private BufferedImage createSimpleIcon() {
