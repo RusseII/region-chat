@@ -327,7 +327,37 @@ public class GlobalChatPlugin extends Plugin {
 
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 
+			// Publish to global chat
 			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
+			
+			// Add icons to sender's own message only if not in read-only mode
+			if (!config.readOnlyMode()) {
+				clientThread.invokeLater(() -> {
+					// Remove the original message
+					final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
+					lineBuffer.removeMessageNode(event.getMessageNode());
+					
+					// Get icons
+					String accountIcon = getAccountIcon();
+					String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
+					String symbol = "<img=19> "; // Global chat icon
+					
+					// Add supporter icon if user is a supporter
+					if (!supporterIcon.isEmpty()) {
+						symbol += supporterIcon + " ";
+					}
+					
+					// Add account type icon
+					if (!accountIcon.isEmpty()) {
+						symbol += accountIcon;
+					}
+					
+					// Re-add the message with icons
+					client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
+					
+					return true;
+				});
+			}
 			// Disable functality for publishing direct messages
 			// } else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
 			// ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
@@ -473,6 +503,22 @@ public class GlobalChatPlugin extends Plugin {
 	@Provides
 	GlobalChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(GlobalChatConfig.class);
+	}
+
+	private String getAccountIcon() {
+		if (client.getWorldType().contains(WorldType.TOURNAMENT_WORLD)) {
+			return "<img=33>";
+		}
+		switch (client.getAccountType()) {
+			case IRONMAN:
+				return "<img=2>";
+			case HARDCORE_IRONMAN:
+				return "<img=10>";
+			case ULTIMATE_IRONMAN:
+				return "<img=3>";
+			default:
+				return "";
+		}
 	}
 
 	private BufferedImage createSimpleIcon() {
