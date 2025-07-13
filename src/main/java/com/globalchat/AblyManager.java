@@ -108,7 +108,7 @@ public class AblyManager {
 		this.supporterManager = supporterManager;
 	}
 
-	public void startConnection() {
+	public void startConnection(String playerName) {
 		// Prevent multiple concurrent connections
 		if (isConnecting) {
 			log.debug("Connection already in progress, skipping");
@@ -129,7 +129,7 @@ public class AblyManager {
 		
 		isConnecting = true;
 		try {
-			setupAblyInstances();
+			setupAblyInstances(playerName);
 		} catch (Exception e) {
 			handleAblyError(e);
 		} finally {
@@ -505,10 +505,10 @@ public class AblyManager {
 		return true;
 	}
 
-	private void setupAblyInstances() {
+	private void setupAblyInstances(String playerName) {
 		try {
 			ClientOptions clientOptions = new ClientOptions();
-			String name = Text.sanitize(client.getLocalPlayer().getName());
+			String name = Text.sanitize(playerName);
 			Param[] params = new Param[] {
 					new Param("clientId", name),
 			};
@@ -676,13 +676,11 @@ public class AblyManager {
 	}
 	
 	public void showUpdateNotification(String message) {
-		if (client.getGameState() == GameState.LOGGED_IN) {
-			log.debug("Showing update notification");
-			
-			chatMessageManager.queue(QueuedMessage.builder()
-				.type(ChatMessageType.GAMEMESSAGE)
-				.runeLiteFormattedMessage(message)
-				.build());
-		}
+		log.debug("Showing update notification");
+		
+		chatMessageManager.queue(QueuedMessage.builder()
+			.type(ChatMessageType.GAMEMESSAGE)
+			.runeLiteFormattedMessage(message)
+			.build());
 	}
 }
