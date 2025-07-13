@@ -6,17 +6,16 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.lang.reflect.Type;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 @Slf4j
 @Singleton
@@ -26,13 +25,15 @@ public class SupporterManager {
 
     private final Gson gson;
     private final ScheduledExecutorService scheduler;
+    private final OkHttpClient httpClient;
     private List<Supporter> supporters = new ArrayList<>();
     private int totalSupport = 0;
     private String lastUpdated = "";
 
     @Inject
-    public SupporterManager(Gson gson) {
+    public SupporterManager(Gson gson, OkHttpClient httpClient) {
         this.gson = gson;
+        this.httpClient = httpClient;
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
 
         // Initial fetch
@@ -95,30 +96,23 @@ public class SupporterManager {
     private void fetchSupporters() {
         CompletableFuture.runAsync(() -> {
             try {
-                URL url = new URL(SUPPORTERS_URL);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(5000);
-                connection.setReadTimeout(10000);
+                Request request = new Request.Builder()
+                        .url(SUPPORTERS_URL)
+                        .build();
 
-                if (connection.getResponseCode() == 200) {
-                    BufferedReader reader = new BufferedReader(
-                            new InputStreamReader(connection.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
+                try (Response response = httpClient.newCall(request).execute()) {
+                    if (response.isSuccessful()) {
+                        if (response.body() != null) {
+                            String responseBody = response.body().string();
+                            parseSupportersResponse(responseBody);
+                            log.debug("Successfully fetched {} supporters", supporters.size());
+                        } else {
+                            log.warn("Response body is null");
+                        }
+                    } else {
+                        log.warn("Failed to fetch supporters: HTTP {}", response.code());
                     }
-                    reader.close();
-
-                    parseSupportersResponse(response.toString());
-                    log.info("Successfully fetched {} supporters", supporters.size());
-                } else {
-                    log.warn("Failed to fetch supporters: HTTP {}", connection.getResponseCode());
                 }
-
-                connection.disconnect();
             } catch (Exception e) {
                 log.error("Error fetching supporters", e);
             }
