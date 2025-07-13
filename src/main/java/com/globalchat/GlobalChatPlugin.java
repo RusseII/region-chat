@@ -30,6 +30,9 @@ import com.google.inject.Provides;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Named;
 import lombok.Getter;
@@ -115,8 +118,13 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	private SupporterManager supporterManager;
 
+	private ScheduledExecutorService scheduler;
+
 	@Override
 	protected void startUp() throws Exception {
+		// Initialize scheduler for delayed operations
+		scheduler = Executors.newSingleThreadScheduledExecutor();
+		
 		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
 								// nothing on initial call
@@ -142,6 +150,11 @@ public class GlobalChatPlugin extends Plugin {
 		ablyManager.closeConnection();
 		shouldConnect = true;
 
+		// Clean up scheduler
+		if (scheduler != null) {
+			scheduler.shutdown();
+		}
+
 		// Clean up supporter manager
 		if (supporterManager != null) {
 			supporterManager.shutdown();
@@ -160,10 +173,13 @@ public class GlobalChatPlugin extends Plugin {
 		// Force cleanup before reconnecting
 		ablyManager.closeConnection();
 
-		// Use clientThread because AblyManager#startConnection needs client.getLocalPlayer().getName()
-		// The delay also helps avoid race conditions with connection cleanup
+		// Do all client data validation on client thread, then start connection
 		clientThread.invokeLater(() -> {
-			ablyManager.startConnection();
+			if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null) {
+				String playerName = client.getLocalPlayer().getName();
+				// All conditions satisfied, start connection after brief delay for cleanup
+				scheduler.schedule(() -> ablyManager.startConnection(playerName), 100, TimeUnit.MILLISECONDS);
+			}
 			return true;
 		});
 	}
@@ -204,18 +220,12 @@ public class GlobalChatPlugin extends Plugin {
 
 	private void onLoggedInGameState() {
 		clientThread.invokeLater(() -> {
-			// we return true in this case as something went wrong and somehow the state
-			// isn't logged in, so we don't
-			// want to keep scheduling this task.
+			// Get all client data first, then execute off client thread
 			if (client.getGameState() != GameState.LOGGED_IN) {
 				return true;
 			}
 
 			final Player player = client.getLocalPlayer();
-
-			// player is null, so we can't get the display name so, return false, which will
-			// schedule
-			// the task on the client thread again.
 			if (player == null) {
 				return false;
 			}
@@ -223,23 +233,23 @@ public class GlobalChatPlugin extends Plugin {
 			if (name == null) {
 				return false;
 			}
-
-			if (name.equals("")) {
+			if (name.equals("") || !shouldConnect) {
 				return false;
 			}
-			if (!shouldConnect) {
-				return true;
-			}
-			String sanitizedName = Text.sanitize(name);
 
+			// Get all needed client data
 			String world = String.valueOf(client.getWorld());
-			ablyManager.startConnection();
-			ablyManager.subscribeToCorrectChannel("p:" + name, world);
-			ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
-			shouldConnect = false;
+			
+			// All conditions satisfied, execute connection logic off client thread
+			scheduler.execute(() -> {
+				ablyManager.startConnection(name);
+				ablyManager.subscribeToCorrectChannel("p:" + name, world);
+				ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
+				shouldConnect = false;
 
-			// Show update notification if not shown before
-			showUpdateNotificationIfNeeded();
+				// Show update notification if needed
+				showUpdateNotificationIfNeeded();
+			});
 
 			return true;
 		});
