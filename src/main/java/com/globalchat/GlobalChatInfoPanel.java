@@ -49,6 +49,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -75,10 +76,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private final Gson gson;
     private JLabel totalUsersLabel;
     private JLabel currentWorldUsersLabel;
+    private JLabel readOnlyStatusLabel;
     private Timer userCountUpdateTimer;
 
     public GlobalChatInfoPanel() {
-        super(false);
+        super(true); // Use built-in RuneLite scrolling
         this.configManager = null;
         this.developerMode = false;
         this.ablyManager = null;
@@ -89,9 +91,9 @@ public class GlobalChatInfoPanel extends PluginPanel {
         init();
     }
 
-    public GlobalChatInfoPanel(boolean developerMode, AblyManager ablyManager, SupporterManager supporterManager, Client client, OkHttpClient httpClient, Gson gson) {
-        super(false);
-        this.configManager = null;
+    public GlobalChatInfoPanel(boolean developerMode, AblyManager ablyManager, SupporterManager supporterManager, Client client, OkHttpClient httpClient, Gson gson, ConfigManager configManager) {
+        super(true); // Use built-in RuneLite scrolling
+        this.configManager = configManager;
         this.developerMode = developerMode;
         this.ablyManager = ablyManager;
         this.supporterManager = supporterManager;
@@ -102,15 +104,17 @@ public class GlobalChatInfoPanel extends PluginPanel {
     }
 
     private void init() {
-        setLayout(new BorderLayout());
-        setBackground(ColorScheme.DARK_GRAY_COLOR);
         setBorder(new EmptyBorder(15, 15, 15, 15));
-        add(createContent(), BorderLayout.CENTER);
+        
+        // Use standard PluginPanel approach - add content directly
+        JPanel contentPanel = createContent();
+        add(contentPanel, BorderLayout.CENTER);
     }
 
     private JPanel createContent() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        panel.setOpaque(true); // Ensure background is painted
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
@@ -118,6 +122,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.NORTH;
+        gbc.insets = new Insets(0, 0, 0, 0); // Reset insets for first item
 
         // Title
         panel.add(createTitle(), gbc);
@@ -127,12 +132,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
         gbc.insets = new Insets(15, 0, 0, 0);
         panel.add(createUserCountSection(), gbc);
 
-        // Spacing
+        // Readonly mode toggle section
         gbc.gridy++;
         gbc.insets = new Insets(15, 0, 0, 0);
-
-        // Settings button
-        panel.add(createSettingsButton(), gbc);
+        panel.add(createReadOnlyToggleSection(), gbc);
 
         gbc.gridy++;
         panel.add(createSupportSection(), gbc);
@@ -175,51 +178,6 @@ public class GlobalChatInfoPanel extends PluginPanel {
         return titlePanel;
     }
 
-    private JPanel createSettingsButton() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
-
-        JButton settingsBtn = new JButton("Open Plugin Settings");
-        settingsBtn.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
-        settingsBtn.setForeground(Color.WHITE);
-        settingsBtn.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
-        settingsBtn.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR.darker(), 1),
-                new EmptyBorder(10, 20, 10, 20)));
-        settingsBtn.setFocusPainted(false);
-        settingsBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-        // Add hover effect
-        settingsBtn.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                settingsBtn.setBackground(ColorScheme.MEDIUM_GRAY_COLOR.brighter());
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                settingsBtn.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
-            }
-        });
-
-        settingsBtn.addActionListener(e -> {
-            // Show helpful instructions since we can't directly open settings
-            javax.swing.JOptionPane.showMessageDialog(
-                    this,
-                    "To access plugin settings:\n\n" +
-                            "1. Click the Settings button in RuneLite's sidebar\n" +
-                            "2. Search for 'Global Chat' or scroll to find it\n" +
-                            "3. Configure your preferences there\n\n" +
-                            "Available settings:\n" +
-                            "- Read-Only Mode\n" +
-                            "- Combat Level Filter",
-                    "Plugin Settings Location",
-                    javax.swing.JOptionPane.INFORMATION_MESSAGE);
-        });
-
-        panel.add(settingsBtn, BorderLayout.CENTER);
-        return panel;
-    }
 
     private JPanel createSupportSection() {
         JPanel panel = new JPanel(new GridBagLayout());
@@ -504,31 +462,6 @@ public class GlobalChatInfoPanel extends PluginPanel {
         return panel;
     }
 
-    private JPanel createSectionContainer(String title) {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        panel.setBorder(new CompoundBorder(
-                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
-                new EmptyBorder(15, 15, 15, 15)));
-
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 1.0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.WEST;
-
-        if (title != null) {
-            JLabel titleLabel = new JLabel(title);
-            titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
-            titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
-            gbc.insets = new Insets(0, 0, 12, 0);
-            panel.add(titleLabel, gbc);
-            gbc.gridy++;
-        }
-
-        return panel;
-    }
 
     private JButton createStyledButton(String text, Color backgroundColor) {
         JButton button = new JButton(text);
@@ -712,6 +645,124 @@ public class GlobalChatInfoPanel extends PluginPanel {
         }
     }
     
+    private JPanel createReadOnlyToggleSection() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        panel.setBorder(new CompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
+                new EmptyBorder(15, 15, 15, 15)));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Title
+        JLabel titleLabel = new JLabel("Chat Mode");
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(titleLabel, gbc);
+        gbc.gridy++;
+
+        // Description
+        JLabel descLabel = new JLabel("<html>" +
+            "<div style='margin-bottom: 8px;'>" +
+            "- Normal Mode: View + Send messages globally<br>" +
+            "- Read-Only: View only, no global sending" +
+            "</div>" +
+            "</html>");
+        descLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        descLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        gbc.insets = new Insets(0, 0, 15, 0);
+        panel.add(descLabel, gbc);
+        gbc.gridy++;
+
+        // Toggle button
+        JToggleButton toggleButton = new JToggleButton();
+        toggleButton.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        toggleButton.setFocusPainted(false);
+        toggleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        toggleButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
+                new EmptyBorder(12, 20, 12, 20)));
+
+        // Get current state from config
+        boolean currentReadOnly = false;
+        if (configManager != null) {
+            currentReadOnly = configManager.getConfiguration("globalchat", "readOnlyMode", Boolean.class);
+        }
+        
+        // Set initial state
+        toggleButton.setSelected(currentReadOnly);
+        updateToggleButtonAppearance(toggleButton, currentReadOnly);
+
+        // Add click listener
+        toggleButton.addActionListener(e -> {
+            boolean newState = toggleButton.isSelected();
+            if (configManager != null) {
+                configManager.setConfiguration("globalchat", "readOnlyMode", newState);
+            }
+            updateToggleButtonAppearance(toggleButton, newState);
+            updateStatusLabel(newState);
+        });
+
+        // Add hover effects
+        toggleButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                toggleButton.setBackground(ColorScheme.MEDIUM_GRAY_COLOR.brighter());
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                updateToggleButtonAppearance(toggleButton, toggleButton.isSelected());
+            }
+        });
+
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(toggleButton, gbc);
+        gbc.gridy++;
+
+        // Status indicator
+        readOnlyStatusLabel = new JLabel();
+        readOnlyStatusLabel.setFont(FontManager.getRunescapeFont().deriveFont(10f));
+        readOnlyStatusLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        updateStatusLabel(currentReadOnly);
+        gbc.insets = new Insets(0, 0, 0, 0);
+        panel.add(readOnlyStatusLabel, gbc);
+
+        return panel;
+    }
+
+    private void updateToggleButtonAppearance(JToggleButton button, boolean readOnly) {
+        if (readOnly) {
+            button.setText("Read-Only: View Only");
+            button.setBackground(ColorScheme.MEDIUM_GRAY_COLOR); // Secondary button style
+            button.setForeground(Color.WHITE); // Standard white text
+            button.setToolTipText("Click to enable sending messages globally");
+        } else {
+            button.setText("Normal: View + Send");
+            button.setBackground(ColorScheme.MEDIUM_GRAY_COLOR); // Secondary button style
+            button.setForeground(Color.WHITE); // Standard white text
+            button.setToolTipText("Click to disable sending messages globally");
+        }
+    }
+
+    private void updateStatusLabel(boolean readOnly) {
+        if (readOnlyStatusLabel != null) {
+            if (readOnly) {
+                readOnlyStatusLabel.setText("<html><i>Warning: Messages will not be sent globally</i></html>");
+                readOnlyStatusLabel.setForeground(new Color(255, 180, 180)); // Keep warning color
+            } else {
+                readOnlyStatusLabel.setText(""); // No status text when normal
+                readOnlyStatusLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+            }
+        }
+    }
+
     public void refreshUserCounts() {
         updateUserCounts();
     }
