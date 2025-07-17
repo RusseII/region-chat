@@ -650,7 +650,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         panel.setBorder(new CompoundBorder(
                 BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
-                new EmptyBorder(15, 15, 15, 15)));
+                new EmptyBorder(12, 15, 12, 15)));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
@@ -663,20 +663,18 @@ public class GlobalChatInfoPanel extends PluginPanel {
         JLabel titleLabel = new JLabel("Chat Mode");
         titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
         titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
-        gbc.insets = new Insets(0, 0, 12, 0);
+        gbc.insets = new Insets(0, 0, 8, 0);
         panel.add(titleLabel, gbc);
         gbc.gridy++;
 
         // Description
         JLabel descLabel = new JLabel("<html>" +
-            "<div style='margin-bottom: 8px;'>" +
             "- Normal Mode: View + Send messages globally<br>" +
             "- Read-Only: View only, no global sending" +
-            "</div>" +
             "</html>");
         descLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
         descLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 15, 0);
+        gbc.insets = new Insets(0, 0, 8, 0);
         panel.add(descLabel, gbc);
         gbc.gridy++;
 
@@ -722,7 +720,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
             }
         });
 
-        gbc.insets = new Insets(0, 0, 12, 0);
+        gbc.insets = new Insets(0, 0, 8, 0);
         panel.add(toggleButton, gbc);
         gbc.gridy++;
 
