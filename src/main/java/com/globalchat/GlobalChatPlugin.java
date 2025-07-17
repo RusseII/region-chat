@@ -189,7 +189,13 @@ public class GlobalChatPlugin extends Plugin {
 			if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null) {
 				String playerName = client.getLocalPlayer().getName();
 				// All conditions satisfied, start connection after brief delay for cleanup
-				scheduler.schedule(() -> ablyManager.startConnection(playerName), 100, TimeUnit.MILLISECONDS);
+				scheduler.schedule(() -> {
+					ablyManager.startConnection(playerName);
+					// Refresh user counts after world change
+					if (infoPanel != null) {
+						infoPanel.refreshUserCounts();
+					}
+				}, 100, TimeUnit.MILLISECONDS);
 			}
 			return true;
 		});
