@@ -375,11 +375,11 @@ public class GlobalChatPlugin extends Plugin {
 			// Publish to global chat
 			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
 			// Disable functality for publishing direct messages
-		} else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
-			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
-					cleanedMessage, true);
-			ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName,
-					cleanedName);
+			// } else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
+			// ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
+			// cleanedMessage, true);
+			// ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName,
+			// cleanedName);
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHAT)
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
