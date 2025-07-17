@@ -76,6 +76,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private final Gson gson;
     private JLabel totalUsersLabel;
     private JLabel currentWorldUsersLabel;
+    private JLabel topWorldLabel;
     private JLabel readOnlyStatusLabel;
     private Timer userCountUpdateTimer;
 
@@ -171,7 +172,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 new EmptyBorder(5, 0, 8, 0)));
 
         JLabel title = new JLabel("Global Chat", SwingConstants.CENTER);
-        title.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 18f));
+        title.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 20f));
         title.setForeground(ColorScheme.BRAND_ORANGE);
         titlePanel.add(title, BorderLayout.CENTER);
 
@@ -195,7 +196,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Title
         JLabel titleLabel = new JLabel("Keep Global Chat Running!");
-        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 16f));
         titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
         gbc.insets = new Insets(0, 0, 12, 0);
         panel.add(titleLabel, gbc);
@@ -204,7 +205,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         // Warning text
         JLabel warningText = new JLabel(
                 "<html><b style='color: #ff6b6b;'>WARNING: Service will go offline when limits are reached!</b></html>");
-        warningText.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        warningText.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
         gbc.insets = new Insets(0, 0, 10, 0);
         panel.add(warningText, gbc);
         gbc.gridy++;
@@ -216,7 +217,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 "- <b>Message limit:</b> 6 million per month<br>" +
                 "- <b>Channel limit:</b> 200 active channels" +
                 "</html>");
-        currentStatus.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        currentStatus.setFont(FontManager.getRunescapeFont().deriveFont(13f));
         currentStatus.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         gbc.insets = new Insets(0, 0, 15, 0);
         panel.add(currentStatus, gbc);
@@ -230,7 +231,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 "- Keep the service running 24/7<br>" +
                 "- Enable new features and improvements" +
                 "</html>");
-        benefitsText.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        benefitsText.setFont(FontManager.getRunescapeFont().deriveFont(13f));
         benefitsText.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         gbc.insets = new Insets(0, 0, 15, 0);
         panel.add(benefitsText, gbc);
@@ -238,7 +239,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Patreon button
         JButton patreonBtn = new JButton("Support on Patreon");
-        patreonBtn.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        patreonBtn.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
         patreonBtn.setForeground(Color.WHITE);
         patreonBtn.setBackground(ColorScheme.BRAND_ORANGE);
         patreonBtn.setBorder(BorderFactory.createCompoundBorder(
@@ -282,7 +283,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Title
         JLabel titleLabel = new JLabel("Amazing Supporters");
-        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 16f));
         titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
         gbc.insets = new Insets(0, 0, 12, 0);
         panel.add(titleLabel, gbc);
@@ -292,7 +293,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         if (supporters.isEmpty()) {
             JLabel noSupportersLabel = new JLabel("<html><i>No supporters yet - be the first!</i></html>");
-            noSupportersLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+            noSupportersLabel.setFont(FontManager.getRunescapeFont().deriveFont(13f));
             noSupportersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
             gbc.insets = new Insets(0, 0, 0, 0);
             panel.add(noSupportersLabel, gbc);
@@ -318,11 +319,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
             new EmptyBorder(8, 12, 8, 12)));
 
         JLabel nameLabel = new JLabel(supporter.getDisplayName());
-        nameLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 11f));
+        nameLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 13f));
         nameLabel.setForeground(Color.WHITE);
 
         JLabel tierLabel = new JLabel(supporter.getTierDisplay());
-        tierLabel.setFont(FontManager.getRunescapeFont().deriveFont(10f));
+        tierLabel.setFont(FontManager.getRunescapeFont().deriveFont(12f));
         tierLabel.setForeground(getTierColor(supporter.tier));
 
         JPanel textPanel = new JPanel(new BorderLayout());
@@ -332,7 +333,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Add tier badge
         JLabel badge = new JLabel(getTierBadge(supporter.tier));
-        badge.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 10f));
+        badge.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
         badge.setForeground(getTierColor(supporter.tier));
 
         panel.add(textPanel, BorderLayout.CENTER);
@@ -387,7 +388,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Title
         JLabel titleLabel = new JLabel("Community & Help");
-        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 16f));
         titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
         gbc.insets = new Insets(0, 0, 12, 0);
         panel.add(titleLabel, gbc);
@@ -465,7 +466,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
     private JButton createStyledButton(String text, Color backgroundColor) {
         JButton button = new JButton(text);
-        button.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        button.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
         button.setForeground(Color.WHITE);
         button.setBackground(backgroundColor);
         button.setBorder(BorderFactory.createCompoundBorder(
@@ -517,7 +518,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Title
         JLabel titleLabel = new JLabel("Online Users");
-        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 16f));
         titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
         gbc.insets = new Insets(0, 0, 12, 0);
         panel.add(titleLabel, gbc);
@@ -525,18 +526,26 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Total users
         totalUsersLabel = new JLabel("Total Online: Loading...");
-        totalUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        totalUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(14f));
         totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 8, 0);
+        gbc.insets = new Insets(0, 0, 4, 0);
         panel.add(totalUsersLabel, gbc);
         gbc.gridy++;
 
         // Current world users
         currentWorldUsersLabel = new JLabel("Current World: Loading...");
-        currentWorldUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        currentWorldUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(14f));
         currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 0, 0);
+        gbc.insets = new Insets(0, 0, 4, 0);
         panel.add(currentWorldUsersLabel, gbc);
+        gbc.gridy++;
+
+        // Top world
+        topWorldLabel = new JLabel("Top World: Loading...");
+        topWorldLabel.setFont(FontManager.getRunescapeFont().deriveFont(14f));
+        topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        gbc.insets = new Insets(0, 0, 0, 0);
+        panel.add(topWorldLabel, gbc);
 
         // Start periodic updates
         startUserCountUpdates();
@@ -576,13 +585,25 @@ public class GlobalChatInfoPanel extends PluginPanel {
                                 }
                             }
                             
-                            UserCountData data = new UserCountData(userCountResponse.totalOnline, currentWorldCount, currentWorldId);
+                            // Find top world
+                            String topWorldId = null;
+                            int topWorldCount = 0;
+                            if (userCountResponse.worldCounts != null) {
+                                for (Map.Entry<String, Integer> entry : userCountResponse.worldCounts.entrySet()) {
+                                    if (entry.getValue() > topWorldCount) {
+                                        topWorldCount = entry.getValue();
+                                        topWorldId = entry.getKey();
+                                    }
+                                }
+                            }
+                            
+                            UserCountData data = new UserCountData(userCountResponse.totalOnline, currentWorldCount, currentWorldId, topWorldId, topWorldCount);
                             
                             // Update UI on EDT
                             javax.swing.SwingUtilities.invokeLater(() -> {
                                 if (data.totalOnline > 0) {
                                     totalUsersLabel.setText("Total Online: " + data.totalOnline + " players");
-                                    totalUsersLabel.setForeground(new Color(76, 175, 80)); // Green
+                                    totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
                                 } else {
                                     totalUsersLabel.setText("Total Online: Unavailable");
                                     totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
@@ -591,7 +612,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                                 if (data.currentWorldId != null) {
                                     if (data.currentWorldCount > 0) {
                                         currentWorldUsersLabel.setText("World " + data.currentWorldId + ": " + data.currentWorldCount + " players");
-                                        currentWorldUsersLabel.setForeground(new Color(76, 175, 80)); // Green
+                                        currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
                                     } else {
                                         currentWorldUsersLabel.setText("World " + data.currentWorldId + ": 0 players");
                                         currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
@@ -599,6 +620,15 @@ public class GlobalChatInfoPanel extends PluginPanel {
                                 } else {
                                     currentWorldUsersLabel.setText("Current World: Not connected");
                                     currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                }
+                                
+                                // Update top world
+                                if (data.topWorldId != null && data.topWorldCount > 0) {
+                                    topWorldLabel.setText("Top World " + data.topWorldId + ": " + data.topWorldCount + " players");
+                                    topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                } else {
+                                    topWorldLabel.setText("Top World: No data");
+                                    topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
                                 }
                             });
                         }
@@ -637,11 +667,15 @@ public class GlobalChatInfoPanel extends PluginPanel {
         final int totalOnline;
         final int currentWorldCount;
         final String currentWorldId;
+        final String topWorldId;
+        final int topWorldCount;
         
-        UserCountData(int totalOnline, int currentWorldCount, String currentWorldId) {
+        UserCountData(int totalOnline, int currentWorldCount, String currentWorldId, String topWorldId, int topWorldCount) {
             this.totalOnline = totalOnline;
             this.currentWorldCount = currentWorldCount;
             this.currentWorldId = currentWorldId;
+            this.topWorldId = topWorldId;
+            this.topWorldCount = topWorldCount;
         }
     }
     
@@ -661,7 +695,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Title
         JLabel titleLabel = new JLabel("Chat Mode");
-        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 16f));
         titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
         gbc.insets = new Insets(0, 0, 8, 0);
         panel.add(titleLabel, gbc);
@@ -672,7 +706,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
             "- Normal Mode: View + Send messages globally<br>" +
             "- Read-Only: View only, no global sending" +
             "</html>");
-        descLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        descLabel.setFont(FontManager.getRunescapeFont().deriveFont(13f));
         descLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         gbc.insets = new Insets(0, 0, 8, 0);
         panel.add(descLabel, gbc);
@@ -680,7 +714,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Toggle button
         JToggleButton toggleButton = new JToggleButton();
-        toggleButton.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        toggleButton.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
         toggleButton.setFocusPainted(false);
         toggleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         toggleButton.setBorder(BorderFactory.createCompoundBorder(
@@ -726,7 +760,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Status indicator
         readOnlyStatusLabel = new JLabel();
-        readOnlyStatusLabel.setFont(FontManager.getRunescapeFont().deriveFont(10f));
+        readOnlyStatusLabel.setFont(FontManager.getRunescapeFont().deriveFont(12f));
         readOnlyStatusLabel.setHorizontalAlignment(SwingConstants.CENTER);
         updateStatusLabel(currentReadOnly);
         gbc.insets = new Insets(0, 0, 0, 0);
