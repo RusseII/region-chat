@@ -712,6 +712,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
         }
     }
     
+    public void refreshUserCounts() {
+        updateUserCounts();
+    }
+    
     public void cleanup() {
         if (userCountUpdateTimer != null) {
             userCountUpdateTimer.stop();
