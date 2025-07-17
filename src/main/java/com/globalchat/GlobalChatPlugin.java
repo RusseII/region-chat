@@ -130,13 +130,14 @@ public class GlobalChatPlugin extends Plugin {
 	protected void startUp() throws Exception {
 		// Initialize scheduler for delayed operations
 		scheduler = Executors.newSingleThreadScheduledExecutor();
-		
+
 		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
 								// nothing on initial call
 
 		// Setup info panel
-		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager, client, okHttpClient, gson, configManager);
+		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager, client, okHttpClient, gson,
+				configManager);
 		log.debug("Created GlobalChatInfoPanel");
 
 		// Create navigation button with simple icon
@@ -170,7 +171,7 @@ public class GlobalChatPlugin extends Plugin {
 		if (navButton != null) {
 			clientToolbar.removeNavigation(navButton);
 		}
-		
+
 		// Clean up info panel
 		if (infoPanel != null) {
 			infoPanel.cleanup();
@@ -256,7 +257,7 @@ public class GlobalChatPlugin extends Plugin {
 
 			// Get all needed client data
 			String world = String.valueOf(client.getWorld());
-			
+
 			// All conditions satisfied, execute connection logic off client thread
 			scheduler.execute(() -> {
 				ablyManager.startConnection(name);
@@ -349,12 +350,12 @@ public class GlobalChatPlugin extends Plugin {
 				// Remove the original message
 				final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
 				lineBuffer.removeMessageNode(event.getMessageNode());
-				
+
 				// Get icons (match the format used for received messages)
 				String accountIcon = getAccountIcon();
 				String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
 				String symbol = accountIcon; // Start with account icon
-				
+
 				// Add supporter icon if user is a supporter
 				if (!supporterIcon.isEmpty()) {
 					if (symbol.isEmpty()) {
@@ -363,22 +364,22 @@ public class GlobalChatPlugin extends Plugin {
 						symbol = supporterIcon + " " + symbol;
 					}
 				}
-				
+
 				// Add global chat icon
 				symbol = "<img=19> " + symbol;
-				
+
 				// Re-add the message with icons
 				client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
 			}
-			
+
 			// Publish to global chat
 			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
 			// Disable functality for publishing direct messages
-			// } else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
-			// ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
-			// cleanedMessage, true);
-			// ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName,
-			// cleanedName);
+		} else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
+			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
+					cleanedMessage, true);
+			ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName,
+					cleanedName);
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHAT)
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
