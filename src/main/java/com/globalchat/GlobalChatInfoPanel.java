@@ -26,10 +26,8 @@ package com.globalchat;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Desktop;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
@@ -38,8 +36,15 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import javax.swing.Timer;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import com.google.gson.Gson;
+import com.google.gson.annotations.SerializedName;
+import java.util.Map;
 import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -51,7 +56,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
-import net.runelite.client.ui.components.PluginErrorPanel;
+import net.runelite.api.Client;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -65,6 +70,12 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private final boolean developerMode;
     private final AblyManager ablyManager;
     private final SupporterManager supporterManager;
+    private final Client client;
+    private final OkHttpClient httpClient;
+    private final Gson gson;
+    private JLabel totalUsersLabel;
+    private JLabel currentWorldUsersLabel;
+    private Timer userCountUpdateTimer;
 
     public GlobalChatInfoPanel() {
         super(false);
@@ -72,15 +83,21 @@ public class GlobalChatInfoPanel extends PluginPanel {
         this.developerMode = false;
         this.ablyManager = null;
         this.supporterManager = null;
+        this.client = null;
+        this.httpClient = new OkHttpClient();
+        this.gson = new Gson();
         init();
     }
 
-    public GlobalChatInfoPanel(boolean developerMode, AblyManager ablyManager, SupporterManager supporterManager) {
+    public GlobalChatInfoPanel(boolean developerMode, AblyManager ablyManager, SupporterManager supporterManager, Client client, OkHttpClient httpClient, Gson gson) {
         super(false);
         this.configManager = null;
         this.developerMode = developerMode;
         this.ablyManager = ablyManager;
         this.supporterManager = supporterManager;
+        this.client = client;
+        this.httpClient = httpClient;
+        this.gson = gson;
         init();
     }
 
@@ -104,6 +121,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Title
         panel.add(createTitle(), gbc);
+
+        // User count section
+        gbc.gridy++;
+        gbc.insets = new Insets(15, 0, 0, 0);
+        panel.add(createUserCountSection(), gbc);
 
         // Spacing
         gbc.gridy++;
@@ -543,6 +565,156 @@ public class GlobalChatInfoPanel extends PluginPanel {
             }
         } catch (Exception e) {
             log.error("Failed to open URL: " + url, e);
+        }
+    }
+
+    private JPanel createUserCountSection() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        panel.setBorder(new CompoundBorder(
+                BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR, 1),
+                new EmptyBorder(15, 15, 15, 15)));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Title
+        JLabel titleLabel = new JLabel("Online Users");
+        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+        gbc.insets = new Insets(0, 0, 12, 0);
+        panel.add(titleLabel, gbc);
+        gbc.gridy++;
+
+        // Total users
+        totalUsersLabel = new JLabel("Total Online: Loading...");
+        totalUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        gbc.insets = new Insets(0, 0, 8, 0);
+        panel.add(totalUsersLabel, gbc);
+        gbc.gridy++;
+
+        // Current world users
+        currentWorldUsersLabel = new JLabel("Current World: Loading...");
+        currentWorldUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        gbc.insets = new Insets(0, 0, 0, 0);
+        panel.add(currentWorldUsersLabel, gbc);
+
+        // Start periodic updates
+        startUserCountUpdates();
+
+        return panel;
+    }
+
+    private void startUserCountUpdates() {
+        // Initial update
+        updateUserCounts();
+        
+        // Update every 30 seconds
+        userCountUpdateTimer = new Timer(30000, e -> updateUserCounts());
+        userCountUpdateTimer.start();
+    }
+
+    private void updateUserCounts() {
+        CompletableFuture.runAsync(() -> {
+            try {
+                Request request = new Request.Builder()
+                    .url("https://global-chat-frontend.vercel.app/api/user-counts")
+                    .build();
+                
+                try (Response response = httpClient.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        String responseBody = response.body().string();
+                        UserCountResponse userCountResponse = gson.fromJson(responseBody, UserCountResponse.class);
+                        
+                        if (userCountResponse != null) {
+                            // Get current world count if available
+                            String currentWorldId = getCurrentWorldId();
+                            int currentWorldCount = 0;
+                            if (currentWorldId != null && userCountResponse.worldCounts != null) {
+                                Integer worldCount = userCountResponse.worldCounts.get(currentWorldId);
+                                if (worldCount != null) {
+                                    currentWorldCount = worldCount;
+                                }
+                            }
+                            
+                            UserCountData data = new UserCountData(userCountResponse.totalOnline, currentWorldCount, currentWorldId);
+                            
+                            // Update UI on EDT
+                            javax.swing.SwingUtilities.invokeLater(() -> {
+                                if (data.totalOnline > 0) {
+                                    totalUsersLabel.setText("Total Online: " + data.totalOnline + " players");
+                                    totalUsersLabel.setForeground(new Color(76, 175, 80)); // Green
+                                } else {
+                                    totalUsersLabel.setText("Total Online: Unavailable");
+                                    totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                }
+                                
+                                if (data.currentWorldId != null) {
+                                    if (data.currentWorldCount > 0) {
+                                        currentWorldUsersLabel.setText("World " + data.currentWorldId + ": " + data.currentWorldCount + " players");
+                                        currentWorldUsersLabel.setForeground(new Color(76, 175, 80)); // Green
+                                    } else {
+                                        currentWorldUsersLabel.setText("World " + data.currentWorldId + ": 0 players");
+                                        currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                    }
+                                } else {
+                                    currentWorldUsersLabel.setText("Current World: Not connected");
+                                    currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                }
+                            });
+                        }
+                    } else {
+                        log.debug("Failed to fetch user counts: HTTP {}", response.code());
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Failed to fetch user counts: {}", e.getMessage());
+            }
+        });
+    }
+    
+    private String getCurrentWorldId() {
+        if (client != null) {
+            int worldId = client.getWorld();
+            if (worldId > 0) {
+                return String.valueOf(worldId);
+            }
+        }
+        return null;
+    }
+    
+    private static class UserCountResponse {
+        @SerializedName("totalOnline")
+        public int totalOnline;
+        
+        @SerializedName("worldCounts")
+        public Map<String, Integer> worldCounts;
+        
+        @SerializedName("error")
+        public String error;
+    }
+    
+    private static class UserCountData {
+        final int totalOnline;
+        final int currentWorldCount;
+        final String currentWorldId;
+        
+        UserCountData(int totalOnline, int currentWorldCount, String currentWorldId) {
+            this.totalOnline = totalOnline;
+            this.currentWorldCount = currentWorldCount;
+            this.currentWorldId = currentWorldId;
+        }
+    }
+    
+    public void cleanup() {
+        if (userCountUpdateTimer != null) {
+            userCountUpdateTimer.stop();
         }
     }
 }

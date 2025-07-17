@@ -27,6 +27,8 @@ package com.globalchat;
 import net.runelite.client.callback.ClientThread;
 
 import com.google.inject.Provides;
+import okhttp3.OkHttpClient;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -116,6 +118,12 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	private SupporterManager supporterManager;
 
+	@Inject
+	private OkHttpClient okHttpClient;
+
+	@Inject
+	private Gson gson;
+
 	private ScheduledExecutorService scheduler;
 
 	@Override
@@ -128,7 +136,7 @@ public class GlobalChatPlugin extends Plugin {
 								// nothing on initial call
 
 		// Setup info panel
-		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager);
+		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager, client, okHttpClient, gson);
 		log.debug("Created GlobalChatInfoPanel");
 
 		// Create navigation button with simple icon
@@ -161,6 +169,11 @@ public class GlobalChatPlugin extends Plugin {
 		// Clean up UI panel
 		if (navButton != null) {
 			clientToolbar.removeNavigation(navButton);
+		}
+		
+		// Clean up info panel
+		if (infoPanel != null) {
+			infoPanel.cleanup();
 		}
 	}
 
