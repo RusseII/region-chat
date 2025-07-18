@@ -89,8 +89,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
         this.ablyManager = null;
         this.supporterManager = null;
         this.client = null;
-        this.httpClient = new OkHttpClient();
-        this.gson = new Gson();
+        this.httpClient = null; // Don't create fresh instance
+        this.gson = null; // Don't create fresh instance
         init();
     }
 
@@ -574,6 +574,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
     }
 
     private void updateUserCounts() {
+        // Skip if we don't have the required dependencies (test constructor)
+        if (httpClient == null || gson == null) {
+            return;
+        }
+        
         CompletableFuture.runAsync(() -> {
             try {
                 Request request = new Request.Builder()
