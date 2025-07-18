@@ -1,10 +1,23 @@
-# Global World Chat
+# Global Chat
 
-Ever tried to have a conversation with someone but they have been too far away and did not recieve this message?
+Chat with players anywhere - no more "too far away" messages!
 
-This plugin is for you! This plugin ensures that your chat will reach one another, so long as you're in the same world.
+## ✨ Features
 
-World 491 is the homeworld for this plugin. You will be most likely to run into other plugin users on this world. 
+- **Chat from anywhere**: Your messages reach all Global Chat users
+- **See who's connected**: Right-click any player to check if they're using Global Chat
+- **Read-only mode**: See messages without sending your own
+- **Clean integration**: Messages appear naturally in your existing chat
+
+Join thousands of players already using Global Chat!
+
+## How It Works
+
+1. **Install and play** - No configuration needed, just install from the Plugin Hub
+2. **Automatic connection** - Connects when you log in
+3. **Type normally** - Your messages reach everyone with the plugin
+4. **See who's online** - Icons show who's using Global Chat
+
 
 ## ⚠️ Service Status & Limits
 
@@ -23,16 +36,20 @@ World 491 is the homeworld for this plugin. You will be most likely to run into 
 
 **[Support on Patreon](https://patreon.com/global_chat_plugin)** to help keep Global Chat running for everyone!
 
-## How does this work?
+## 🔒 Privacy & Security
 
-This project makes use of [Ably](https://www.ably.com), a realtime messaging and data synchronization platform, in order to communicate between clients. [Channels](https://ably.com/channels) are used to divide up communication between clients. Each channel's name is structured so as to indicate the world, that the channel encapsulates. For example:
+When you install Global Chat, you'll see a standard RuneLite warning about data transmission. Here's what actually happens:
 
-`globalchat:[world]`
+**Your IP Address:**
+- Used only by Ably (our messaging infrastructure) to maintain your connection
+- Never stored, logged, or collected by us
+- Never visible to other players
+- Automatically discarded when you log out
 
-When a player enters one of the worlds which support Global Chat, they'll automatically enter the channel for that world. They'll subscribe to messages from it, and any messages received will be shown in the chat, assuming the message wasn't already seen. Any messages you send in this world will also be sent to the Ably Channel, so others can see them.
+**Your Messages:**
+- Sent through Ably's secure infrastructure
+- Not stored or logged anywhere
+- Only visible to other Global Chat users
 
-Due to Ably fundamentally being a Pub/Sub system, any identifying information (such as IP) will not be made accessible to other clients. The only thing other clients can see is the content of your message.
-
-This is an intentionally simple implementation of a 1-to-1 channel to region system without additional bells and whistles. It'd be possible to implement better authentication, division of regions, and more.
-
-New features like filtering messages by names and other customization options will be coming soon.
+**About Ably:**
+Global Chat uses Ably, a professional real-time messaging service that handles millions of messages daily for major companies worldwide. They're SOC 2 Type II certified and GDPR compliant, meaning they meet strict security and privacy standards.
