@@ -41,6 +41,16 @@ public interface GlobalChatConfig extends Config {
     default boolean readOnlyMode() {
         return false;
     }
+
+    @ConfigItem(
+            keyName = "showPlayerLookup",
+            name = "Show Player Lookup",
+            description = "Show 'GC Status' option when right-clicking players to check if they're connected to Global Chat.",
+            position = 2
+    )
+    default boolean showPlayerLookup() {
+        return true;
+    }
     @ConfigItem(
         keyName = "filterOutFromBelowCblvl",
         name = "Hide Msgs < CB Level",
