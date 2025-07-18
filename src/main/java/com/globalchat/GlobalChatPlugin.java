@@ -32,6 +32,7 @@ import com.google.gson.Gson;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -125,20 +126,31 @@ public class GlobalChatPlugin extends Plugin {
 	private Gson gson;
 
 	private ScheduledExecutorService scheduler;
+	
+	// Tracking for chat command transformations
+	private final Map<String, Long> pendingCommands = new HashMap<>();
+	private final Map<String, String> commandTransformations = new HashMap<>();
 
 	@Override
 	protected void startUp() throws Exception {
 		// Initialize scheduler for delayed operations
 		scheduler = Executors.newSingleThreadScheduledExecutor();
+		
+		// Clear old pending commands periodically
+		scheduler.scheduleAtFixedRate(() -> {
+			long now = System.currentTimeMillis();
+			pendingCommands.entrySet().removeIf(entry -> now - entry.getValue() > 5000); // 5 second cleanup
+		}, 10, 10, TimeUnit.SECONDS);
 
 		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
 								// nothing on initial call
 
 		// Setup info panel
-		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager, client, okHttpClient, gson,
-				configManager);
+		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager);
 		log.debug("Created GlobalChatInfoPanel");
+		
+		log.debug("Global Chat plugin started successfully");
 
 		// Create navigation button with simple icon
 		navButton = NavigationButton.builder()
@@ -329,57 +341,137 @@ public class GlobalChatPlugin extends Plugin {
 		}
 	}
 
+	// Single method approach using scheduler to handle transformation detection
 	@Subscribe
 	public void onChatMessage(ChatMessage event) {
 		String cleanedMessage = Text.removeTags(event.getMessage());
-
 		String cleanedName = Text.sanitize(event.getName());
 		boolean isPublic = event.getType().equals(ChatMessageType.PUBLICCHAT);
 
 		boolean isLocalPlayerSendingMessage = cleanedName.equals(client.getLocalPlayer().getName());
+		
+		log.debug("Chat event - Type: {}, IsLocal: {}", event.getType(), isLocalPlayerSendingMessage);
+		
 		if (isPublic && isLocalPlayerSendingMessage) {
-			// Check for spam BEFORE publishing to save costs
-			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
-				return; // Don't publish spam messages
-			}
-
-			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
-
-			// Modify message to include icons if not in read-only mode and connected
-			if (!config.readOnlyMode() && ablyManager.isConnected()) {
-				// Remove the original message
-				final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
-				lineBuffer.removeMessageNode(event.getMessageNode());
-
-				// Get icons (match the format used for received messages)
-				String accountIcon = getAccountIcon();
-				String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
-				String symbol = accountIcon; // Start with account icon
-
-				// Add supporter icon if user is a supporter
-				if (!supporterIcon.isEmpty()) {
-					if (symbol.isEmpty()) {
-						symbol = supporterIcon;
-					} else {
-						symbol = supporterIcon + " " + symbol;
+			log.debug("Processing local public message from: '{}'", cleanedName);
+			
+			// Check if this is a command
+			if (cleanedMessage.matches("^![a-zA-Z]+.*")) {
+				log.debug("Chat command detected: '{}'", cleanedMessage);
+				
+				// Store original message and schedule transformation check
+				String originalMessage = cleanedMessage;
+				pendingCommands.put(originalMessage, System.currentTimeMillis());
+				
+				// Schedule multiple checks to catch transformation
+				// First check at 100ms
+				scheduler.schedule(() -> {
+					checkForTransformation(originalMessage, cleanedName, event, 1);
+				}, 100, TimeUnit.MILLISECONDS);
+				
+				// Second check at 250ms if first fails
+				scheduler.schedule(() -> {
+					if (pendingCommands.containsKey(originalMessage)) {
+						checkForTransformation(originalMessage, cleanedName, event, 2);
 					}
-				}
-
-				// Add global chat icon
-				symbol = "<img=19> " + symbol;
-
-				// Re-add the message with icons
-				client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
+				}, 250, TimeUnit.MILLISECONDS);
+				
+			} else {
+				publishMessageToGlobalChat("w", cleanedMessage, cleanedName, "REGULAR_MESSAGE");
 			}
+		}
+		
+		handleAllGlobalMessages(event, cleanedMessage, cleanedName, isLocalPlayerSendingMessage);
+	}
+	
+	private void checkForTransformation(String originalMessage, String playerName, ChatMessage originalEvent, int attempt) {
+		try {
+			log.debug("Checking transformation attempt #{} for command: '{}'", attempt, originalMessage);
+			
+			MessageNode messageNode = originalEvent.getMessageNode();
+			if (messageNode != null) {
+				String runeLiteMessage = messageNode.getRuneLiteFormatMessage();
+				String currentMessage = runeLiteMessage != null ? Text.removeTags(runeLiteMessage) : Text.removeTags(originalEvent.getMessage());
+				
+				if (!originalMessage.equals(currentMessage)) {
+					log.debug("Command transformed: '{}' -> '{}'", originalMessage, currentMessage);
+					commandTransformations.put(originalMessage, currentMessage);
+					// Send the transformed message (without color formatting)
+					publishMessageToGlobalChat("w", currentMessage, playerName, "TRANSFORMATION_DETECTED");
+					pendingCommands.remove(originalMessage);
+				} else if (attempt >= 2) {
+					// Final attempt - no transformation found, send original
+					publishMessageToGlobalChat("w", originalMessage, playerName, "COMMAND_NO_TRANSFORMATION");
+					pendingCommands.remove(originalMessage);
+				}
+				// If attempt < 2 and no transformation, just wait for retry
+			} else {
+				if (attempt >= 2) {
+					publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_NULL");
+					pendingCommands.remove(originalMessage);
+				}
+			}
+			
+		} catch (Exception e) {
+			log.error("Error checking transformation for '{}': ", originalMessage, e);
+			if (attempt >= 2) {
+				publishMessageToGlobalChat("w", originalMessage, playerName, "TRANSFORMATION_CHECK_ERROR");
+				pendingCommands.remove(originalMessage);
+			}
+		}
+	}
+	
+	
+	private void publishMessageToGlobalChat(String type, String message, String playerName, String approach) {
+		// Check for spam BEFORE publishing to save costs
+		if (!ablyManager.shouldPublishMessage(message, playerName)) {
+			return;
+		}
 
-			// Publish to global chat
-			ablyManager.publishMessage("w", cleanedMessage, "w:" + String.valueOf(client.getWorld()), "");
-			// Disable functality for publishing direct messages
-			// } else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
-			// ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
-			// cleanedMessage, true);
-			// ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName,
-			// cleanedName);
+		// Ensure publish happens on client thread to access client data
+		clientThread.invokeLater(() -> {
+			try {
+				String channel = type + ":" + String.valueOf(client.getWorld());
+				ablyManager.shouldShowMessge(playerName, message, true);
+				ablyManager.publishMessage(type, message, channel, "");
+			} catch (Exception e) {
+				log.error("Error publishing message: '{}'", message, e);
+			}
+			return true;
+		});
+	}
+	
+	private void handleAllGlobalMessages(ChatMessage event, String cleanedMessage, String cleanedName, boolean isLocalPlayerSendingMessage) {
+		if (event.getType().equals(ChatMessageType.PUBLICCHAT) && isLocalPlayerSendingMessage) {
+			// Handle icons for regular messages (non-commands) only
+			if (!cleanedMessage.matches("^![a-zA-Z]+.*")) {
+				// Modify message to include icons if not in read-only mode and connected
+				if (!config.readOnlyMode() && ablyManager.isConnected()) {
+					// Remove the original message
+					final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
+					lineBuffer.removeMessageNode(event.getMessageNode());
+
+					// Get icons (match the format used for received messages)
+					String accountIcon = getAccountIcon();
+					String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
+					String symbol = accountIcon; // Start with account icon
+
+					// Add supporter icon if user is a supporter
+					if (!supporterIcon.isEmpty()) {
+						if (symbol.isEmpty()) {
+							symbol = supporterIcon;
+						} else {
+							symbol = supporterIcon + " " + symbol;
+						}
+					}
+
+					// Add global chat icon
+					symbol = "<img=19> " + symbol;
+
+					// Re-add the message with icons
+					client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
+				}
+			}
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHAT)
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
@@ -401,37 +493,29 @@ public class GlobalChatPlugin extends Plugin {
 					.get(ChatMessageType.CLAN_GUEST_CHAT.getType());
 			lineBuffer.removeMessageNode(event.getMessageNode());
 		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && isLocalPlayerSendingMessage) {
-			// Check for spam BEFORE publishing to save costs
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
-				return; // Don't publish spam messages
+				return;
 			}
-
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 			FriendsChatManager friendsChatManager = client.getFriendsChatManager();
 			if (friendsChatManager != null) {
 				ablyManager.publishMessage("f", cleanedMessage, "f:" + friendsChat,
 						friendsChatManager.getName());
 			}
-		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT)
-				&& isLocalPlayerSendingMessage) {
-			// Check for spam BEFORE publishing to save costs
+		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT) && isLocalPlayerSendingMessage) {
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
-				return; // Don't publish spam messages
+				return;
 			}
-
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
 			ClanChannel clanChannel = client.getClanChannel();
 			if (clanChannel != null) {
 				ablyManager.publishMessage("c", cleanedMessage, "c:" + clanChannel.getName(),
 						clanChannel.getName());
 			}
-		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT)
-				&& isLocalPlayerSendingMessage) {
-			// Check for spam BEFORE publishing to save costs
+		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT) && isLocalPlayerSendingMessage) {
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
-				return; // Don't publish spam messages
+				return;
 			}
-
 			ablyManager.shouldShowMessge(client.getLocalPlayer().getName(), cleanedMessage, true);
 			ClanChannel guestClanChannel = client.getGuestClanChannel();
 			if (guestClanChannel != null) {
@@ -439,7 +523,6 @@ public class GlobalChatPlugin extends Plugin {
 						guestClanChannel.getName());
 			}
 		} else {
-
 			ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true);
 		}
 	}
