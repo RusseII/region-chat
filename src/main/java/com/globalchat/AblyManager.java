@@ -61,6 +61,7 @@ import net.runelite.client.util.Text;
 import net.runelite.api.Player;
 import net.runelite.api.Constants;
 import net.runelite.api.Friend;
+import net.runelite.client.callback.ClientThread;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -85,6 +86,9 @@ public class AblyManager {
 
 	@Inject
 	ChatMessageManager chatMessageManager;
+
+	@Inject
+	ClientThread clientThread;
 
 	private final GlobalChatConfig config;
 	private final boolean developerMode;
@@ -205,13 +209,9 @@ public class AblyManager {
 			return cachedCbLevel < config.filterOutFromBelowCblvl();
 		}
 
-		for (Player player : client.getPlayers()) {
-			if (player != null && player.getName() != null && cleanedName.equals(player.getName())) {
-				playerCombats.put(cleanedName, player.getCombatLevel());
-				return player.getCombatLevel() < config.filterOutFromBelowCblvl();
-			}
-		}
-		return false; // If no matching player is found, return false.
+		// This method should only use cached data since it can be called from any thread
+		// Player combat levels are cached in handleAblyMessage when messages are received
+		return false; // If no cached level, assume not under cb level
 	}
 
 	public boolean isSpam(String message) {
@@ -366,10 +366,7 @@ public class AblyManager {
 	}
 
 	private void handleAblyMessage(Message message) {
-		if (client.getGameState() != GameState.LOGGED_IN) {
-			return;
-		}
-
+		// Parse message data on background thread (safe - just parsing JSON)
 		GlobalChatMessage msg = gson.fromJson((JsonElement) message.data, GlobalChatMessage.class);
 		String username = Text.removeTags(msg.username);
 		String receivedMsg = Text.removeTags(msg.message); // Clean message for display
@@ -381,74 +378,90 @@ public class AblyManager {
 			return;
 		}
 
-		String symbol = getValidAccountIcon(msg.symbol);
+		String baseSymbol = getValidAccountIcon(msg.symbol);
 		
 		// Add supporter icon if user is a supporter
 		String supporterIcon = supporterManager.getSupporterIcon(username);
 		if (!supporterIcon.isEmpty()) {
-			if (symbol.isEmpty()) {
-				symbol = supporterIcon;
+			if (baseSymbol.isEmpty()) {
+				baseSymbol = supporterIcon;
 			} else {
-				symbol = supporterIcon + " " + symbol;
+				baseSymbol = supporterIcon + " " + baseSymbol;
 			}
 		}
 
 		if (msg.type.equals("w")) {
-			symbol = "<img=19> " + symbol;
+			baseSymbol = "<img=19> " + baseSymbol;
 		}
 
 		if (username.length() > 12) {
 			return;
 		}
-		
-		final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
-				.append(receivedMsg);
-		
-		if (msg.type.equals("p") && !username.equals(client.getLocalPlayer().getName())
-				&& msg.to.equals(client.getLocalPlayer().getName())) {
 
-			chatMessageManager.queue(QueuedMessage.builder()
-					.type(ChatMessageType.PRIVATECHAT)
-					.name(symbol + username)
-					.runeLiteFormattedMessage(chatMessageBuilder.build())
-					.build());
-		} else if (msg.type.equals("w")) {
+		// Final variable for lambda capture
+		final String symbol = baseSymbol;
 
-			chatMessageManager.queue(QueuedMessage.builder()
-					.type(ChatMessageType.PUBLICCHAT)
-					.name(symbol + username)
-					.runeLiteFormattedMessage(chatMessageBuilder.build())
-					.build());
-
-			for (Player player : client.getPlayers()) {
-				if (player != null &&
-						player.getName() != null &&
-						username.equals(player.getName())) {
-					player.setOverheadText(receivedMsg);
-					player.setOverheadCycle(CYCLES_FOR_OVERHEAD_TEXT);
-
-					return;
-				}
+		// Move all client data access to client thread
+		clientThread.invokeLater(() -> {
+			if (client.getGameState() != GameState.LOGGED_IN) {
+				return true;
 			}
 
-		}
+			final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
+					.append(receivedMsg);
 
-		else if (msg.type.equals("f") && !username.equals(client.getLocalPlayer().getName())) {
+			if (msg.type.equals("p") && client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null 
+					&& !username.equals(client.getLocalPlayer().getName())
+					&& msg.to.equals(client.getLocalPlayer().getName())) {
 
-			chatMessageManager.queue(QueuedMessage.builder()
-					.type(ChatMessageType.FRIENDSCHAT)
-					.name(symbol + username).sender(msg.to)
-					.runeLiteFormattedMessage(chatMessageBuilder.build())
-					.build());
-		} else if (msg.type.equals("c") && !username.equals(client.getLocalPlayer().getName())) {
+				chatMessageManager.queue(QueuedMessage.builder()
+						.type(ChatMessageType.PRIVATECHAT)
+						.name(symbol + username)
+						.runeLiteFormattedMessage(chatMessageBuilder.build())
+						.build());
+			} else if (msg.type.equals("w")) {
 
-			chatMessageManager.queue(QueuedMessage.builder()
-					.type(ChatMessageType.CLAN_CHAT)
-					.name(symbol + username).sender(msg.to)
-					.runeLiteFormattedMessage(chatMessageBuilder.build())
-					.build());
-		}
+				chatMessageManager.queue(QueuedMessage.builder()
+						.type(ChatMessageType.PUBLICCHAT)
+						.name(symbol + username)
+						.runeLiteFormattedMessage(chatMessageBuilder.build())
+						.build());
 
+				// Cache combat level while accessing player data
+				for (Player player : client.getPlayers()) {
+					if (player != null &&
+							player.getName() != null &&
+							username.equals(player.getName())) {
+						
+						// Cache the combat level for future use
+						playerCombats.put(Text.sanitize(player.getName()), player.getCombatLevel());
+						
+						player.setOverheadText(receivedMsg);
+						player.setOverheadCycle(CYCLES_FOR_OVERHEAD_TEXT);
+						break;
+					}
+				}
+
+			} else if (msg.type.equals("f") && client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null
+					&& !username.equals(client.getLocalPlayer().getName())) {
+
+				chatMessageManager.queue(QueuedMessage.builder()
+						.type(ChatMessageType.FRIENDSCHAT)
+						.name(symbol + username).sender(msg.to)
+						.runeLiteFormattedMessage(chatMessageBuilder.build())
+						.build());
+			} else if (msg.type.equals("c") && client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null
+					&& !username.equals(client.getLocalPlayer().getName())) {
+
+				chatMessageManager.queue(QueuedMessage.builder()
+						.type(ChatMessageType.CLAN_CHAT)
+						.name(symbol + username).sender(msg.to)
+						.runeLiteFormattedMessage(chatMessageBuilder.build())
+						.build());
+			}
+			
+			return true;
+		});
 	}
 
 	// Checks for bits someone could insert in to be icons
