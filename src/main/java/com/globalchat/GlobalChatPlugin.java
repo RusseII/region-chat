@@ -27,6 +27,8 @@ package com.globalchat;
 import net.runelite.client.callback.ClientThread;
 
 import com.google.inject.Provides;
+import okhttp3.OkHttpClient;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -48,6 +50,7 @@ import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.ImageUtil;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -116,6 +119,12 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	private SupporterManager supporterManager;
 
+	@Inject
+	private OkHttpClient okHttpClient;
+
+	@Inject
+	private Gson gson;
+
 	private ScheduledExecutorService scheduler;
 	
 	// Tracking for chat command transformations
@@ -132,7 +141,7 @@ public class GlobalChatPlugin extends Plugin {
 			long now = System.currentTimeMillis();
 			pendingCommands.entrySet().removeIf(entry -> now - entry.getValue() > 5000); // 5 second cleanup
 		}, 10, 10, TimeUnit.SECONDS);
-		
+
 		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
 								// nothing on initial call
@@ -174,6 +183,11 @@ public class GlobalChatPlugin extends Plugin {
 		if (navButton != null) {
 			clientToolbar.removeNavigation(navButton);
 		}
+
+		// Clean up info panel
+		if (infoPanel != null) {
+			infoPanel.cleanup();
+		}
 	}
 
 	@Subscribe
@@ -188,7 +202,13 @@ public class GlobalChatPlugin extends Plugin {
 			if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null) {
 				String playerName = client.getLocalPlayer().getName();
 				// All conditions satisfied, start connection after brief delay for cleanup
-				scheduler.schedule(() -> ablyManager.startConnection(playerName), 100, TimeUnit.MILLISECONDS);
+				scheduler.schedule(() -> {
+					ablyManager.startConnection(playerName);
+					// Refresh user counts after world change
+					if (infoPanel != null) {
+						infoPanel.refreshUserCounts();
+					}
+				}, 100, TimeUnit.MILLISECONDS);
 			}
 			return true;
 		});
@@ -249,7 +269,7 @@ public class GlobalChatPlugin extends Plugin {
 
 			// Get all needed client data
 			String world = String.valueOf(client.getWorld());
-			
+
 			// All conditions satisfied, execute connection logic off client thread
 			scheduler.execute(() -> {
 				ablyManager.startConnection(name);
@@ -422,7 +442,37 @@ public class GlobalChatPlugin extends Plugin {
 	}
 	
 	private void handleAllGlobalMessages(ChatMessage event, String cleanedMessage, String cleanedName, boolean isLocalPlayerSendingMessage) {
-		if (event.getType().equals(ChatMessageType.PRIVATECHAT)
+		if (event.getType().equals(ChatMessageType.PUBLICCHAT) && isLocalPlayerSendingMessage) {
+			// Handle icons for regular messages (non-commands) only
+			if (!cleanedMessage.matches("^![a-zA-Z]+.*")) {
+				// Modify message to include icons if not in read-only mode and connected
+				if (!config.readOnlyMode() && ablyManager.isConnected()) {
+					// Remove the original message
+					final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
+					lineBuffer.removeMessageNode(event.getMessageNode());
+
+					// Get icons (match the format used for received messages)
+					String accountIcon = getAccountIcon();
+					String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
+					String symbol = accountIcon; // Start with account icon
+
+					// Add supporter icon if user is a supporter
+					if (!supporterIcon.isEmpty()) {
+						if (symbol.isEmpty()) {
+							symbol = supporterIcon;
+						} else {
+							symbol = supporterIcon + " " + symbol;
+						}
+					}
+
+					// Add global chat icon
+					symbol = "<img=19> " + symbol;
+
+					// Re-add the message with icons
+					client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
+				}
+			}
+		} else if (event.getType().equals(ChatMessageType.PRIVATECHAT)
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.PRIVATECHAT.getType());
@@ -554,10 +604,26 @@ public class GlobalChatPlugin extends Plugin {
 		return configManager.getConfig(GlobalChatConfig.class);
 	}
 
+	private String getAccountIcon() {
+		if (client.getWorldType().contains(WorldType.TOURNAMENT_WORLD)) {
+			return "<img=33>";
+		}
+		switch (client.getAccountType()) {
+			case IRONMAN:
+				return "<img=2>";
+			case HARDCORE_IRONMAN:
+				return "<img=10>";
+			case ULTIMATE_IRONMAN:
+				return "<img=3>";
+			default:
+				return "";
+		}
+	}
+
 	private BufferedImage createSimpleIcon() {
 		try {
 			// Load the icon from project root
-			BufferedImage image = ImageIO.read(new java.io.File("icon.png"));
+			BufferedImage image = ImageIO.read(getClass().getResourceAsStream("/icon.png"));
 
 			// Resize to 16x16 if needed
 			if (image.getWidth() != 16 || image.getHeight() != 16) {
