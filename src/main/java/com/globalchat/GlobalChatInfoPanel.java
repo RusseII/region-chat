@@ -78,7 +78,9 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private JLabel currentWorldUsersLabel;
     private JLabel topWorldLabel;
     private JLabel readOnlyStatusLabel;
+    private JLabel connectionStatusLabel;
     private Timer userCountUpdateTimer;
+    private Timer connectionStatusTimer;
 
     public GlobalChatInfoPanel() {
         super(true); // Use built-in RuneLite scrolling
@@ -516,6 +518,14 @@ public class GlobalChatInfoPanel extends PluginPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.WEST;
 
+        // Connection Status
+        connectionStatusLabel = new JLabel("● Checking connection...");
+        connectionStatusLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        updateConnectionStatus();
+        gbc.insets = new Insets(0, 0, 10, 0);
+        panel.add(connectionStatusLabel, gbc);
+        gbc.gridy++;
+
         // Title
         JLabel titleLabel = new JLabel("Online Users");
         titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
@@ -549,6 +559,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Start periodic updates
         startUserCountUpdates();
+        startConnectionStatusUpdates();
 
         return panel;
     }
@@ -803,5 +814,34 @@ public class GlobalChatInfoPanel extends PluginPanel {
         if (userCountUpdateTimer != null) {
             userCountUpdateTimer.stop();
         }
+        if (connectionStatusTimer != null) {
+            connectionStatusTimer.stop();
+        }
+    }
+    
+    private void updateConnectionStatus() {
+        if (connectionStatusLabel == null) return;
+        
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            if (ablyManager == null) {
+                connectionStatusLabel.setText("\u25cf Not initialized");
+                connectionStatusLabel.setForeground(Color.GRAY);
+            } else if (ablyManager.isConnected()) {
+                connectionStatusLabel.setText("\u25cf Connected to Global Chat");
+                connectionStatusLabel.setForeground(new Color(0, 200, 0)); // Green
+            } else {
+                connectionStatusLabel.setText("\u25cf Disconnected");
+                connectionStatusLabel.setForeground(new Color(200, 0, 0)); // Red
+            }
+        });
+    }
+    
+    private void startConnectionStatusUpdates() {
+        // Update immediately
+        updateConnectionStatus();
+        
+        // Update every 2 seconds
+        connectionStatusTimer = new Timer(2000, e -> updateConnectionStatus());
+        connectionStatusTimer.start();
     }
 }
