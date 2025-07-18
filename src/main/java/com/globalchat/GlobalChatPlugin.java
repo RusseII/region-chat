@@ -147,7 +147,7 @@ public class GlobalChatPlugin extends Plugin {
 								// nothing on initial call
 
 		// Setup info panel
-		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager);
+		infoPanel = new GlobalChatInfoPanel(developerMode, ablyManager, supporterManager, client, okHttpClient, gson, configManager);
 		log.debug("Created GlobalChatInfoPanel");
 		
 		log.debug("Global Chat plugin started successfully");
