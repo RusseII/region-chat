@@ -142,6 +142,16 @@ public class AblyManager {
 		}
 	}
 	
+	public boolean isConnected() {
+		if (ablyRealtime == null) return false;
+		try {
+			return ablyRealtime.connection.state == io.ably.lib.realtime.ConnectionState.connected;
+		} catch (Exception e) {
+			log.debug("Error checking connection state", e);
+			return false;
+		}
+	}
+
 	public void cleanupInactiveChannels() {
 		if (ablyRealtime == null) return;
 		
