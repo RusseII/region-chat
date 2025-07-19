@@ -537,32 +537,9 @@ public class GlobalChatInfoPanel extends PluginPanel {
         panel.add(connectionLimitsLabel, gbc);
         gbc.gridy++;
 
-        // Fetch connection stats with retries to ensure we get data quickly
+        // Fetch connection stats immediately - let failure states handle retries
         if (httpClient != null && gson != null) {
-            // Initial fetch after 100ms
-            SwingUtilities.invokeLater(() -> {
-                Timer initialFetchTimer = new Timer(100, e -> fetchConnectionStats());
-                initialFetchTimer.setRepeats(false);
-                initialFetchTimer.start();
-                
-                // Retry after 2 seconds if still no data
-                Timer retryTimer = new Timer(2000, e -> {
-                    if (connectionStats == null) {
-                        fetchConnectionStats();
-                    }
-                });
-                retryTimer.setRepeats(false);
-                retryTimer.start();
-                
-                // Final retry after 5 seconds if still no data
-                Timer finalRetryTimer = new Timer(5000, e -> {
-                    if (connectionStats == null) {
-                        fetchConnectionStats();
-                    }
-                });
-                finalRetryTimer.setRepeats(false);
-                finalRetryTimer.start();
-            });
+            fetchConnectionStats();
         }
 
         // Title
@@ -707,8 +684,18 @@ public class GlobalChatInfoPanel extends PluginPanel {
     }
 
     private void fetchConnectionStats() {
+        fetchConnectionStatsWithRetry(0);
+    }
+
+    private void fetchConnectionStatsWithRetry(int attemptCount) {
         // Skip if we don't have the required dependencies
         if (httpClient == null || gson == null) {
+            return;
+        }
+        
+        // Don't retry indefinitely
+        if (attemptCount >= 3) {
+            log.debug("Max retry attempts reached for connection stats, giving up");
             return;
         }
         
@@ -719,7 +706,15 @@ public class GlobalChatInfoPanel extends PluginPanel {
         httpClient.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                log.error("Error fetching connection stats", e);
+                log.warn("Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
+                
+                // Retry on network failures with exponential backoff
+                int delayMs = 1000 * (int) Math.pow(2, attemptCount); // 1s, 2s, 4s
+                Timer retryTimer = new Timer(delayMs, retryEvent -> {
+                    fetchConnectionStatsWithRetry(attemptCount + 1);
+                });
+                retryTimer.setRepeats(false);
+                retryTimer.start();
             }
 
             @Override
@@ -728,9 +723,19 @@ public class GlobalChatInfoPanel extends PluginPanel {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         parseConnectionStatsResponse(responseBody);
-                        log.debug("Successfully fetched connection stats");
+                        log.debug("Successfully fetched connection stats on attempt {}", attemptCount + 1);
                     } else {
-                        log.warn("Failed to fetch connection stats: HTTP {}", response.code());
+                        log.warn("Failed to fetch connection stats: HTTP {} (attempt {})", response.code(), attemptCount + 1);
+                        
+                        // Retry on HTTP errors (5xx server errors, but not 4xx client errors)
+                        if (response.code() >= 500 && attemptCount < 2) {
+                            int delayMs = 2000 * (attemptCount + 1); // 2s, 4s
+                            Timer retryTimer = new Timer(delayMs, retryEvent -> {
+                                fetchConnectionStatsWithRetry(attemptCount + 1);
+                            });
+                            retryTimer.setRepeats(false);
+                            retryTimer.start();
+                        }
                     }
                 } finally {
                     response.close();
