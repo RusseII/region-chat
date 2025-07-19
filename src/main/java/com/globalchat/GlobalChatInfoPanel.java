@@ -1038,11 +1038,12 @@ public class GlobalChatInfoPanel extends PluginPanel {
         updateConnectionStatus();
         fetchConnectionStats();
         
-        // Update every 30 seconds (connection status and stats)
-        connectionStatusTimer = new Timer(30000, e -> {
-            updateConnectionStatus();
-            fetchConnectionStats();
-        });
+        // Update connection status every 2 seconds (responsive)
+        connectionStatusTimer = new Timer(2000, e -> updateConnectionStatus());
         connectionStatusTimer.start();
+        
+        // Update connection stats every 30 seconds (less frequent)
+        Timer connectionStatsTimer = new Timer(30000, e -> fetchConnectionStats());
+        connectionStatsTimer.start();
     }
 }
