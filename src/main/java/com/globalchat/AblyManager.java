@@ -175,7 +175,6 @@ public class AblyManager {
 	private final boolean developerMode;
 
 	private AblyRealtime ablyRealtime;
-	private volatile boolean isConnecting = false;
 	private final ExecutorService publishExecutor;
 	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
@@ -196,17 +195,16 @@ public class AblyManager {
 	}
 
 	public void startConnection(String playerName) {
-		// Prevent multiple concurrent connections
-		if (isConnecting) {
-			log.debug("Connection already in progress, skipping");
-			return;
-		}
-		
-		// Check if already connected
+		// Check if we're already connected or connecting using Ably's connection state
 		if (ablyRealtime != null) {
 			try {
-				if (ablyRealtime.connection.state == io.ably.lib.realtime.ConnectionState.connected) {
+				io.ably.lib.realtime.ConnectionState state = ablyRealtime.connection.state;
+				if (state == io.ably.lib.realtime.ConnectionState.connected) {
 					log.debug("Already connected, skipping");
+					return;
+				}
+				if (state == io.ably.lib.realtime.ConnectionState.connecting) {
+					log.debug("Connection already in progress, skipping");
 					return;
 				}
 			} catch (Exception e) {
@@ -214,19 +212,21 @@ public class AblyManager {
 			}
 		}
 		
-		isConnecting = true;
 		try {
 			setupAblyInstances(playerName);
 		} catch (Exception e) {
 			handleAblyError(e);
-		} finally {
-			isConnecting = false;
 		}
 	}
 
 	public void closeSpecificChannel(String channelName) {
 		if (ablyRealtime == null) {
 			log.debug("AblyRealtime is null, cannot close channel: {}", channelName);
+			return;
+		}
+		
+		if (publishExecutor == null) {
+			log.debug("PublishExecutor is null, cannot close channel: {}", channelName);
 			return;
 		}
 		
@@ -388,6 +388,75 @@ public class AblyManager {
 		} catch (Exception err) {
 			log.error("Error preparing message for publish", err);
 			return false;
+		}
+	}
+
+	public void publishMessageAsync(String t, String message, String channel, String to, java.util.function.Consumer<Boolean> callback) {
+		// Build message on client thread (need client data)
+		try {
+			if (client.getLocalPlayer() == null) {
+				if (callback != null) callback.accept(false);
+				return;
+			}
+			if (config.readOnlyMode()) {
+				if (callback != null) callback.accept(false);
+				return;
+			}
+
+			// Gather all client data needed for the message
+			String username = Text.removeTags(client.getLocalPlayer().getName());
+			String symbol = getAccountIcon();
+			
+			// Determine channel options based on message type
+			ChannelOptions options;
+			if (t.equals("p")) {
+				Friend friend = client.getFriendContainer().findByName(to);
+				if (friend == null) {
+					if (callback != null) callback.accept(false);
+					return;
+				}
+				String key = String.valueOf(friend.getWorld());
+				String paddedKeyString = padKey(key, 16);
+				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
+				options = ChannelOptions.withCipherKey(base64EncodedKey);
+			} else {
+				String paddedKeyString = padKey("pub", 16);
+				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
+				options = ChannelOptions.withCipherKey(base64EncodedKey);
+			}
+
+			// Build the message JSON
+			JsonObject msg = io.ably.lib.util.JsonUtils.object()
+					.add("symbol", symbol)
+					.add("username", username)
+					.add("message", message)
+					.add("type", t)
+					.add("to", to)
+					.toJson();
+
+			// Push actual publishing to executor to avoid blocking client thread
+			publishExecutor.submit(() -> {
+				try {
+					if (ablyRealtime == null) {
+						log.debug("AblyRealtime is null, cannot publish message");
+						if (callback != null) callback.accept(false);
+						return;
+					}
+					
+					Channel currentChannel = ablyRealtime.channels.get(channel, options);
+					currentChannel.publish("event", msg);
+					log.debug("Published message to channel: {}", channel);
+					if (callback != null) callback.accept(true);
+				} catch (AblyException err) {
+					log.error("Ably publish error", err);
+					handleAblyError(err);
+					if (callback != null) callback.accept(false);
+				}
+			});
+			
+		} catch (Exception err) {
+			log.error("Error preparing message for publish", err);
+			if (callback != null) callback.accept(false);
 		}
 	}
 
