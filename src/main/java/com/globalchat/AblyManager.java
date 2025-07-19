@@ -176,7 +176,7 @@ public class AblyManager {
 
 	private AblyRealtime ablyRealtime;
 	private volatile boolean isConnecting = false;
-	private final ExecutorService publishExecutor;
+	private ExecutorService publishExecutor;
 	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
 	private final Map<Integer, Long> lastErrorMessageTimePerWorld = new HashMap<>();
@@ -188,11 +188,22 @@ public class AblyManager {
 		this.config = config;
 		this.developerMode = developerMode;
 		this.supporterManager = supporterManager;
-		this.publishExecutor = Executors.newSingleThreadExecutor(r -> {
+		this.publishExecutor = createPublishExecutor();
+	}
+	
+	private ExecutorService createPublishExecutor() {
+		return Executors.newSingleThreadExecutor(r -> {
 			Thread t = new Thread(r, "AblyPublisher");
 			t.setDaemon(true);
 			return t;
 		});
+	}
+	
+	private synchronized void ensureExecutorAvailable() {
+		if (publishExecutor == null || publishExecutor.isShutdown() || publishExecutor.isTerminated()) {
+			publishExecutor = createPublishExecutor();
+			log.debug("Recreated publish executor");
+		}
 	}
 
 	public void startConnection(String playerName) {
@@ -244,6 +255,7 @@ public class AblyManager {
 		}
 		
 		// Move channel detachment to background executor
+		ensureExecutorAvailable();
 		publishExecutor.submit(() -> {
 			try {
 				ablyRealtime.channels.get(channelName).detach();
@@ -297,6 +309,7 @@ public class AblyManager {
 		
 		if (connectionToClose != null) {
 			// Move the actual closing to background to avoid blocking
+			ensureExecutorAvailable();
 			publishExecutor.submit(() -> {
 				try {
 					log.debug("Closing Ably connection in background");
@@ -317,15 +330,17 @@ public class AblyManager {
 		closeConnection();
 		
 		// Then shutdown the executor after a brief delay to allow pending tasks to complete
-		try {
-			publishExecutor.shutdown();
-			if (!publishExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+		if (publishExecutor != null && !publishExecutor.isShutdown()) {
+			try {
+				publishExecutor.shutdown();
+				if (!publishExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+					publishExecutor.shutdownNow();
+					log.debug("Force shutdown publish executor");
+				}
+			} catch (InterruptedException e) {
 				publishExecutor.shutdownNow();
-				log.debug("Force shutdown publish executor");
+				Thread.currentThread().interrupt();
 			}
-		} catch (InterruptedException e) {
-			publishExecutor.shutdownNow();
-			Thread.currentThread().interrupt();
 		}
 	}
 
@@ -387,6 +402,7 @@ public class AblyManager {
 					.toJson();
 
 			// Push actual publishing to executor to avoid blocking client thread
+			ensureExecutorAvailable();
 			publishExecutor.submit(() -> {
 				try {
 					if (ablyRealtime == null) {
@@ -454,6 +470,7 @@ public class AblyManager {
 					.toJson();
 
 			// Push actual publishing to executor to avoid blocking client thread
+			ensureExecutorAvailable();
 			publishExecutor.submit(() -> {
 				try {
 					if (ablyRealtime == null) {
@@ -756,6 +773,7 @@ public class AblyManager {
 			ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
 			
 			// Move actual subscription to background executor
+			ensureExecutorAvailable();
 			publishExecutor.submit(() -> {
 				try {
 					Channel currentChannel = ablyRealtime.channels.get(channelName, options);

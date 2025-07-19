@@ -171,7 +171,8 @@ public class GlobalChatPlugin extends Plugin {
 						long now = System.currentTimeMillis();
 
 						// Implement exponential backoff to prevent spam
-						long backoffTime = Math.min(60000, 10000 * (long) Math.pow(2, Math.min(reconnectAttempts / 3, 4)));
+						long backoffTime = Math.min(60000,
+								10000 * (long) Math.pow(2, Math.min(reconnectAttempts / 3, 4)));
 						if (now - lastReconnectAttempt < backoffTime) {
 							return true; // Skip this attempt due to backoff
 						}
@@ -466,7 +467,8 @@ public class GlobalChatPlugin extends Plugin {
 		handleAllGlobalMessages(event, cleanedMessage, cleanedName, isLocalPlayerSendingMessage);
 	}
 
-	private void checkForTransformationWithRetry(String originalMessage, String playerName, MessageNode messageNode, int attempt) {
+	private void checkForTransformationWithRetry(String originalMessage, String playerName, MessageNode messageNode,
+			int attempt) {
 		// Immediately check for transformation
 		checkForTransformation(originalMessage, playerName, messageNode, attempt, (success) -> {
 			if (!success && attempt < 2) {
@@ -505,24 +507,29 @@ public class GlobalChatPlugin extends Plugin {
 							// Send the transformed message (without color formatting)
 							publishMessageToGlobalChat("w", currentMessage, playerName, "TRANSFORMATION_DETECTED");
 							pendingCommands.remove(originalMessage);
-							if (callback != null) callback.accept(true);
+							if (callback != null)
+								callback.accept(true);
 						} else if (attempt >= 2) {
 							// Final attempt - no transformation found, send original
 							publishMessageToGlobalChat("w", originalMessage, playerName, "COMMAND_NO_TRANSFORMATION");
 							pendingCommands.remove(originalMessage);
-							if (callback != null) callback.accept(true);
+							if (callback != null)
+								callback.accept(true);
 						} else {
 							// No transformation yet, signal failure for retry
-							if (callback != null) callback.accept(false);
+							if (callback != null)
+								callback.accept(false);
 						}
 					} catch (Exception e) {
 						log.error("Error accessing MessageNode for '{}': ", originalMessage, e);
 						if (attempt >= 2) {
 							publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_ACCESS_ERROR");
 							pendingCommands.remove(originalMessage);
-							if (callback != null) callback.accept(true);
+							if (callback != null)
+								callback.accept(true);
 						} else {
-							if (callback != null) callback.accept(false);
+							if (callback != null)
+								callback.accept(false);
 						}
 					}
 					return true;
@@ -531,9 +538,11 @@ public class GlobalChatPlugin extends Plugin {
 				if (attempt >= 2) {
 					publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_NULL");
 					pendingCommands.remove(originalMessage);
-					if (callback != null) callback.accept(true);
+					if (callback != null)
+						callback.accept(true);
 				} else {
-					if (callback != null) callback.accept(false);
+					if (callback != null)
+						callback.accept(false);
 				}
 			}
 
@@ -542,9 +551,11 @@ public class GlobalChatPlugin extends Plugin {
 			if (attempt >= 2) {
 				publishMessageToGlobalChat("w", originalMessage, playerName, "TRANSFORMATION_CHECK_ERROR");
 				pendingCommands.remove(originalMessage);
-				if (callback != null) callback.accept(true);
+				if (callback != null)
+					callback.accept(true);
 			} else {
-				if (callback != null) callback.accept(false);
+				if (callback != null)
+					callback.accept(false);
 			}
 		}
 	}
@@ -560,7 +571,7 @@ public class GlobalChatPlugin extends Plugin {
 			try {
 				String channel = type + ":" + String.valueOf(client.getWorld());
 				ablyManager.shouldShowMessge(playerName, message, true);
-				
+
 				// Move actual publishing off client thread to background executor
 				ablyManager.publishMessageAsync(type, message, channel, "", (success) -> {
 					if (!success) {
@@ -769,7 +780,8 @@ public class GlobalChatPlugin extends Plugin {
 				} catch (Exception e) {
 					log.error("Error parsing response for " + cleanName, e);
 					clientThread.invokeLater(() -> {
-						String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName + "</col>";
+						String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName
+								+ "</col>";
 						client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", errorMessage, null);
 						return true;
 					});
@@ -863,7 +875,7 @@ public class GlobalChatPlugin extends Plugin {
 			if (config.readOnlyMode()) {
 				return;
 			}
-			
+
 			// Rate limiting: only show error message every 30 minutes to prevent spam
 			long now = System.currentTimeMillis();
 			if (now - lastFailedSendMessageTime < FAILED_SEND_MESSAGE_COOLDOWN) {
