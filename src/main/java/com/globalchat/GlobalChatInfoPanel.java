@@ -540,35 +540,35 @@ public class GlobalChatInfoPanel extends PluginPanel {
         }
 
         // Title
-        JLabel titleLabel = new JLabel("Online Users");
-        titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
-        titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
-        gbc.insets = new Insets(0, 0, 12, 0);
-        panel.add(titleLabel, gbc);
-        gbc.gridy++;
+        // JLabel titleLabel = new JLabel("Online Users");
+        // titleLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 14f));
+        // titleLabel.setForeground(ColorScheme.BRAND_ORANGE);
+        // gbc.insets = new Insets(0, 0, 12, 0);
+        // panel.add(titleLabel, gbc);
+        // gbc.gridy++;
 
         // Total users
-        totalUsersLabel = new JLabel("Total Online: Loading...");
-        totalUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
-        totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 3, 0);
-        panel.add(totalUsersLabel, gbc);
-        gbc.gridy++;
+        // totalUsersLabel = new JLabel("Total Online: Loading...");
+        // totalUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        // totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        // gbc.insets = new Insets(0, 0, 3, 0);
+        // panel.add(totalUsersLabel, gbc);
+        // gbc.gridy++;
 
         // Current world users
-        currentWorldUsersLabel = new JLabel("Current World: Loading...");
-        currentWorldUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
-        currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 3, 0);
-        panel.add(currentWorldUsersLabel, gbc);
-        gbc.gridy++;
+        // currentWorldUsersLabel = new JLabel("Current World: Loading...");
+        // currentWorldUsersLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        // currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        // gbc.insets = new Insets(0, 0, 3, 0);
+        // panel.add(currentWorldUsersLabel, gbc);
+        // gbc.gridy++;
 
         // Top world
-        topWorldLabel = new JLabel("Top World: Loading...");
-        topWorldLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
-        topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 0, 0);
-        panel.add(topWorldLabel, gbc);
+        // topWorldLabel = new JLabel("Top World: Loading...");
+        // topWorldLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
+        // topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        // gbc.insets = new Insets(0, 0, 0, 0);
+        // panel.add(topWorldLabel, gbc);
 
         // Start periodic updates
         startUserCountUpdates();
