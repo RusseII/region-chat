@@ -9,7 +9,6 @@ import javax.inject.Singleton;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -94,13 +93,19 @@ public class SupporterManager {
     }
 
     private void fetchSupporters() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                Request request = new Request.Builder()
-                        .url(SUPPORTERS_URL)
-                        .build();
+        Request request = new Request.Builder()
+                .url(SUPPORTERS_URL)
+                .build();
 
-                try (Response response = httpClient.newCall(request).execute()) {
+        httpClient.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override
+            public void onFailure(okhttp3.Call call, java.io.IOException e) {
+                log.error("Error fetching supporters", e);
+            }
+
+            @Override
+            public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
+                try {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         parseSupportersResponse(responseBody);
@@ -108,9 +113,9 @@ public class SupporterManager {
                     } else {
                         log.warn("Failed to fetch supporters: HTTP {}", response.code());
                     }
+                } finally {
+                    response.close();
                 }
-            } catch (Exception e) {
-                log.error("Error fetching supporters", e);
             }
         });
     }
