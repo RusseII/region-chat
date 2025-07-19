@@ -217,21 +217,14 @@ public class GlobalChatInfoPanel extends PluginPanel {
         // Current status
         JLabel currentStatus = new JLabel("<html>" +
                 "<b>Service Limits:</b><br>" +
+                "- <b>Connection limit:</b> 200 concurrent users<br>" +
                 "- <b>Message limit:</b> 6 million per month<br>" +
                 "- <b>Channel limit:</b> 200 active channels" +
                 "</html>");
         currentStatus.setFont(FontManager.getRunescapeFont().deriveFont(11f));
         currentStatus.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 10, 0);
-        panel.add(currentStatus, gbc);
-        gbc.gridy++;
-
-        // Connection limits (dynamic)
-        connectionLimitsLabel = new JLabel("Loading connection info...");
-        connectionLimitsLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
-        connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         gbc.insets = new Insets(0, 0, 15, 0);
-        panel.add(connectionLimitsLabel, gbc);
+        panel.add(currentStatus, gbc);
         gbc.gridy++;
 
         // Benefits text
@@ -531,8 +524,16 @@ public class GlobalChatInfoPanel extends PluginPanel {
         connectionStatusLabel = new JLabel("● Checking connection...");
         connectionStatusLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
         updateConnectionStatus();
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 5, 0);
         panel.add(connectionStatusLabel, gbc);
+        gbc.gridy++;
+
+        // Connection limits (dynamic)
+        connectionLimitsLabel = new JLabel("Loading connection info...");
+        connectionLimitsLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        gbc.insets = new Insets(0, 0, 10, 0);
+        panel.add(connectionLimitsLabel, gbc);
         gbc.gridy++;
 
         // Title
@@ -692,9 +693,13 @@ public class GlobalChatInfoPanel extends PluginPanel {
                         
                         if (stats != null) {
                             SwingUtilities.invokeLater(() -> {
+                                // Show both channels and connections, emphasizing channels since they limit first
                                 String statusText = String.format(
-                                    "<html><b>Connection Status:</b> %d / %d users<br>" +
-                                    "<b>Utilization:</b> %.1f%%</html>",
+                                    "<html><b>Channels:</b> %d / %d (%.1f%%)<br>" +
+                                    "<b>Connections:</b> %d / %d (%.1f%%)</html>",
+                                    stats.currentChannels,
+                                    stats.maxChannels,
+                                    (stats.currentChannels * 100.0 / stats.maxChannels),
                                     stats.currentConnections,
                                     stats.maxConnections,
                                     (stats.currentConnections * 100.0 / stats.maxConnections)
@@ -702,29 +707,35 @@ public class GlobalChatInfoPanel extends PluginPanel {
                                 
                                 connectionLimitsLabel.setText(statusText);
                                 
-                                // Color code based on utilization
-                                double utilization = stats.currentConnections * 100.0 / stats.maxConnections;
-                                if (utilization > 90) {
-                                    connectionLimitsLabel.setForeground(Color.RED);
-                                } else if (utilization > 75) {
-                                    connectionLimitsLabel.setForeground(Color.ORANGE);
+                                // Color code based on the higher utilization (most critical)
+                                double channelUtilization = stats.currentChannels * 100.0 / stats.maxChannels;
+                                double connectionUtilization = stats.currentConnections * 100.0 / stats.maxConnections;
+                                double maxUtilization = Math.max(channelUtilization, connectionUtilization);
+                                
+                                if (maxUtilization >= 100) {
+                                    connectionLimitsLabel.setForeground(Color.RED); // Over limit!
+                                } else if (maxUtilization > 90) {
+                                    connectionLimitsLabel.setForeground(Color.RED); // Critical
+                                } else if (maxUtilization > 75) {
+                                    connectionLimitsLabel.setForeground(Color.ORANGE); // Warning
                                 } else {
-                                    connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                    connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR); // Normal
                                 }
                             });
                         }
                     } else {
+                        log.debug("Failed to fetch connection stats: HTTP {}", response.code());
                         SwingUtilities.invokeLater(() -> {
-                            connectionLimitsLabel.setText("<html><b>Connection Status:</b> Unable to fetch</html>");
-                            connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                            connectionLimitsLabel.setText("<html><b>Connection Status:</b> HTTP " + response.code() + "</html>");
+                            connectionLimitsLabel.setForeground(Color.ORANGE);
                         });
                     }
                 }
             } catch (Exception e) {
-                log.debug("Failed to fetch connection stats: {}", e.getMessage());
+                log.error("Failed to fetch connection stats: {}", e.getMessage(), e);
                 SwingUtilities.invokeLater(() -> {
-                    connectionLimitsLabel.setText("<html><b>Connection Status:</b> Error fetching data</html>");
-                    connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                    connectionLimitsLabel.setText("<html><b>Connection Status:</b> Error: " + e.getMessage() + "</html>");
+                    connectionLimitsLabel.setForeground(Color.RED);
                 });
             }
         }).start();
@@ -757,6 +768,12 @@ public class GlobalChatInfoPanel extends PluginPanel {
         
         @SerializedName("maxConnections")  
         public int maxConnections;
+        
+        @SerializedName("currentChannels")
+        public int currentChannels;
+        
+        @SerializedName("maxChannels")
+        public int maxChannels;
         
         @SerializedName("error")
         public String error;
