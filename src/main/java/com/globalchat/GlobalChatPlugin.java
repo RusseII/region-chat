@@ -109,7 +109,7 @@ public class GlobalChatPlugin extends Plugin {
 	private String theGuesttheClanName;
 
 	private long lastFailedSendMessageTime = 0;
-	private static final long FAILED_SEND_MESSAGE_COOLDOWN = 300000; // 5 minutes
+	private static final long FAILED_SEND_MESSAGE_COOLDOWN = 1800000; // 30 minutes
 
 	@Getter
 	private final HashMap<String, ArrayList<String>> previousMessages = new HashMap<>();
@@ -755,7 +755,7 @@ public class GlobalChatPlugin extends Plugin {
 
 	private void removeGlobalChatIconFromRecentMessage(String message) {
 		try {
-			// Rate limiting: only show error message every 5 minutes to prevent spam
+			// Rate limiting: only show error message every 30 minutes to prevent spam
 			long now = System.currentTimeMillis();
 			if (now - lastFailedSendMessageTime < FAILED_SEND_MESSAGE_COOLDOWN) {
 				return; // Skip showing message if within cooldown period
