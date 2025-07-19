@@ -682,16 +682,21 @@ public class GlobalChatInfoPanel extends PluginPanel {
             return;
         }
         
-        long now = System.currentTimeMillis();
-        
-        // Use cached data if fresh
-        if (cachedConnectionStats != null && (now - lastConnectionStatsUpdate) < CONNECTION_STATS_CACHE_TIME) {
+        // ALWAYS show cached data first if we have it
+        if (cachedConnectionStats != null) {
             updateConnectionDisplay(cachedConnectionStats);
-            return;
         }
         
-        // Fetch fresh data
-        fetchConnectionStats();
+        long now = System.currentTimeMillis();
+        
+        // Only fetch fresh data if cache is actually expired AND we haven't fetched recently
+        if (cachedConnectionStats == null || (now - lastConnectionStatsUpdate) >= CONNECTION_STATS_CACHE_TIME) {
+            log.debug("Cache expired, fetching fresh connection stats");
+            fetchConnectionStats();
+        } else {
+            log.debug("Using cached connection stats, {} seconds remaining", 
+                (CONNECTION_STATS_CACHE_TIME - (now - lastConnectionStatsUpdate)) / 1000);
+        }
     }
     
     private void fetchConnectionStats() {
@@ -720,13 +725,17 @@ public class GlobalChatInfoPanel extends PluginPanel {
         try {
             ConnectionStatsResponse response = gson.fromJson(json, ConnectionStatsResponse.class);
             
-            if (response != null && response.maxConnections > 0) {
+            // Only update if we get valid data (prevent overwriting good cache with bad data)
+            if (response != null && response.maxConnections > 0 && response.currentConnections >= 0) {
+                log.debug("Parsed valid connection stats: {}/{}", response.currentConnections, response.maxConnections);
                 cachedConnectionStats = response;
                 lastConnectionStatsUpdate = System.currentTimeMillis();
                 updateConnectionDisplay(response);
+            } else {
+                log.warn("Received invalid connection stats, keeping cached data. Response: {}", json);
             }
         } catch (Exception e) {
-            log.error("Error parsing connection stats response", e);
+            log.error("Error parsing connection stats response: {}", json, e);
         }
     }
     
