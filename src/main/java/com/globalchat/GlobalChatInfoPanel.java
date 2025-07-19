@@ -59,6 +59,7 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -677,6 +678,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
         if (httpClient == null || gson == null || connectionLimitsLabel == null) {
             return;
         }
+        
+        // Add debug logging for game state
+        if (client != null) {
+            log.debug("Fetching connection stats - Game state: {}", client.getGameState());
+        }
 
         // Use a background thread to fetch connection info
         new Thread(() -> {
@@ -689,9 +695,13 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
+                        log.debug("Connection stats API response: {}", responseBody);
                         ConnectionStatsResponse stats = gson.fromJson(responseBody, ConnectionStatsResponse.class);
                         
                         if (stats != null) {
+                            log.debug("Connection stats parsed - Connections: {}/{}, Channels: {}/{}", 
+                                stats.currentConnections, stats.maxConnections, 
+                                stats.currentChannels, stats.maxChannels);
                             SwingUtilities.invokeLater(() -> {
                                 String statusText;
                                 double connectionUtilization = stats.currentConnections * 100.0 / stats.maxConnections;
