@@ -96,6 +96,7 @@ public class AblyManager {
 	private AblyRealtime ablyRealtime;
 	private volatile boolean isConnecting = false;
 	private final Map<String, Long> channelLastActivity = new HashMap<>();
+	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
 	private long lastErrorMessageTime = 0;
 	private static final long ERROR_MESSAGE_COOLDOWN = 300000; // 5 minutes
@@ -141,6 +142,7 @@ public class AblyManager {
 		try {
 			ablyRealtime.channels.get(channelName).detach();
 			channelLastActivity.remove(channelName);
+			channelSubscriptionStatus.remove(channelName);
 		} catch (AblyException err) {
 			log.error("error", err);
 		}
@@ -149,7 +151,33 @@ public class AblyManager {
 	public boolean isConnected() {
 		if (ablyRealtime == null) return false;
 		try {
-			return ablyRealtime.connection.state == io.ably.lib.realtime.ConnectionState.connected;
+			// Check basic connection state
+			if (ablyRealtime.connection.state != io.ably.lib.realtime.ConnectionState.connected) {
+				return false;
+			}
+			
+			// Check that we have channels subscribed
+			if (channelSubscriptionStatus.isEmpty()) {
+				return false; // No channels subscribed means not connected
+			}
+			
+			// Verify ALL channel subscriptions succeeded
+			boolean allChannelsSuccessful = channelSubscriptionStatus.values().stream()
+				.allMatch(status -> status);
+			
+			if (!allChannelsSuccessful) {
+				return false; // Some channel subscriptions failed
+			}
+			
+			// Verify all subscribed channels have recent activity (within last 10 minutes)
+			long tenMinutesAgo = System.currentTimeMillis() - 600000;
+			boolean allChannelsActive = channelSubscriptionStatus.keySet().stream()
+				.allMatch(channelName -> {
+					Long lastActivity = channelLastActivity.get(channelName);
+					return lastActivity != null && lastActivity > tenMinutesAgo;
+				});
+			
+			return allChannelsActive;
 		} catch (Exception e) {
 			log.debug("Error checking connection state", e);
 			return false;
@@ -164,6 +192,7 @@ public class AblyManager {
 			if (now - entry.getValue() > 300000) { // 5 minutes
 				try {
 					ablyRealtime.channels.get(entry.getKey()).detach();
+					channelSubscriptionStatus.remove(entry.getKey());
 					log.debug("Cleaned up inactive channel: " + entry.getKey());
 				} catch (Exception e) {
 					log.debug("Error cleaning up channel: " + entry.getKey(), e);
@@ -300,7 +329,7 @@ public class AblyManager {
 		return spamMessages.contains(message);
 	}
 
-	public void publishMessage(String t, String message, String channel, String to) {
+	public boolean publishMessage(String t, String message, String channel, String to) {
 		try {
 
 			Channel currentChannel;
@@ -320,10 +349,10 @@ public class AblyManager {
 			}
 			
 			if (client.getLocalPlayer() == null) {
-				return;
+				return false;
 			}
 			if (config.readOnlyMode()) {
-				return;
+				return false;
 			}
 
 			String username = Text.removeTags(client.getLocalPlayer().getName());
@@ -333,9 +362,11 @@ public class AblyManager {
 					.add("message", message).add("type", t).add("to", to).toJson();
 			
 			currentChannel.publish("event", msg);
+			return true;
 		} catch (AblyException err) {
 			log.error("Ably publish error", err);
 			handleAblyError(err);
+			return false;
 		}
 	}
 
@@ -586,12 +617,17 @@ public class AblyManager {
 			Channel currentChannel = ablyRealtime.channels.get(channelName, options);
 			currentChannel.subscribe(this::handleMessage);
 			
+			// Mark channel as successfully subscribed
+			channelSubscriptionStatus.put(channelName, true);
+			
 			// Mark channel as active for cleanup tracking
 			markChannelActive(channelName);
 			
 			return currentChannel;
 		} catch (AblyException err) {
 			log.error("Ably subscribe error", err);
+			// Mark channel subscription as failed
+			channelSubscriptionStatus.put(channelName, false);
 			handleAblyError(err);
 		}
 		return null;
@@ -666,15 +702,15 @@ public class AblyManager {
 			
 			// Show in-game chat message with rate limiting
 			showInGameErrorMessage(
-				"<col=ff9040>Global Chat is at capacity!</col> " +
-				"The plugin has reached its usage limits. " +
-				"<col=00ff00>Support on Patreon to help increase limits!</col>"
+				"<col=ff9040>Global Chat connection failed!</col> " +
+				"Rate limits have been reached. " +
+				"<col=00ff00>Subscribe on Patreon for higher limits!</col>"
 			);
 		} else {
-			// For other errors, show a generic connection error
+			// For other errors, show a connection error with limit information
 			showInGameErrorMessage(
-				"<col=ff0000>Global Chat connection error!</col> " +
-				"Service may be temporarily unavailable. Try again later."
+				"<col=ff0000>Global Chat is hitting its connection limit!</col> " +
+				"<col=00ff00>Subscribe to Patreon to increase limits.</col>"
 			);
 		}
 	}

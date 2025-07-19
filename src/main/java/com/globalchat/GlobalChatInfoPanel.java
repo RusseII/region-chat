@@ -37,6 +37,7 @@ import java.awt.event.MouseEvent;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -79,6 +80,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private JLabel topWorldLabel;
     private JLabel readOnlyStatusLabel;
     private JLabel connectionStatusLabel;
+    private JLabel connectionLimitsLabel;
     private Timer userCountUpdateTimer;
     private Timer connectionStatusTimer;
 
@@ -214,15 +216,22 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Current status
         JLabel currentStatus = new JLabel("<html>" +
-                "<b>Current Status and Limits:</b><br>" +
-                "- <b>Connection limit:</b> 200 concurrent users<br>" +
+                "<b>Service Limits:</b><br>" +
                 "- <b>Message limit:</b> 6 million per month<br>" +
                 "- <b>Channel limit:</b> 200 active channels" +
                 "</html>");
         currentStatus.setFont(FontManager.getRunescapeFont().deriveFont(11f));
         currentStatus.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        gbc.insets = new Insets(0, 0, 15, 0);
+        gbc.insets = new Insets(0, 0, 10, 0);
         panel.add(currentStatus, gbc);
+        gbc.gridy++;
+
+        // Connection limits (dynamic)
+        connectionLimitsLabel = new JLabel("Loading connection info...");
+        connectionLimitsLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        gbc.insets = new Insets(0, 0, 15, 0);
+        panel.add(connectionLimitsLabel, gbc);
         gbc.gridy++;
 
         // Benefits text
@@ -567,9 +576,13 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private void startUserCountUpdates() {
         // Initial update
         updateUserCounts();
+        updateConnectionLimits();
         
         // Update every 30 seconds
-        userCountUpdateTimer = new Timer(30000, e -> updateUserCounts());
+        userCountUpdateTimer = new Timer(30000, e -> {
+            updateUserCounts();
+            updateConnectionLimits();
+        });
         userCountUpdateTimer.start();
     }
 
@@ -657,6 +670,65 @@ public class GlobalChatInfoPanel extends PluginPanel {
             }
         });
     }
+
+    private void updateConnectionLimits() {
+        // Skip if we don't have the required dependencies
+        if (httpClient == null || gson == null || connectionLimitsLabel == null) {
+            return;
+        }
+
+        // Use a background thread to fetch connection info
+        new Thread(() -> {
+            try {
+                // Make request to get connection stats (you may need to adjust this endpoint)
+                Request request = new Request.Builder()
+                    .url("https://global-chat-frontend.vercel.app/api/stats/connections")
+                    .build();
+
+                try (Response response = httpClient.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        String responseBody = response.body().string();
+                        ConnectionStatsResponse stats = gson.fromJson(responseBody, ConnectionStatsResponse.class);
+                        
+                        if (stats != null) {
+                            SwingUtilities.invokeLater(() -> {
+                                String statusText = String.format(
+                                    "<html><b>Connection Status:</b> %d / %d users<br>" +
+                                    "<b>Utilization:</b> %.1f%%</html>",
+                                    stats.currentConnections,
+                                    stats.maxConnections,
+                                    (stats.currentConnections * 100.0 / stats.maxConnections)
+                                );
+                                
+                                connectionLimitsLabel.setText(statusText);
+                                
+                                // Color code based on utilization
+                                double utilization = stats.currentConnections * 100.0 / stats.maxConnections;
+                                if (utilization > 90) {
+                                    connectionLimitsLabel.setForeground(Color.RED);
+                                } else if (utilization > 75) {
+                                    connectionLimitsLabel.setForeground(Color.ORANGE);
+                                } else {
+                                    connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                }
+                            });
+                        }
+                    } else {
+                        SwingUtilities.invokeLater(() -> {
+                            connectionLimitsLabel.setText("<html><b>Connection Status:</b> Unable to fetch</html>");
+                            connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Failed to fetch connection stats: {}", e.getMessage());
+                SwingUtilities.invokeLater(() -> {
+                    connectionLimitsLabel.setText("<html><b>Connection Status:</b> Error fetching data</html>");
+                    connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                });
+            }
+        }).start();
+    }
     
     private String getCurrentWorldId() {
         if (client != null) {
@@ -674,6 +746,17 @@ public class GlobalChatInfoPanel extends PluginPanel {
         
         @SerializedName("worldCounts")
         public Map<String, Integer> worldCounts;
+        
+        @SerializedName("error")
+        public String error;
+    }
+
+    private static class ConnectionStatsResponse {
+        @SerializedName("currentConnections")
+        public int currentConnections;
+        
+        @SerializedName("maxConnections")  
+        public int maxConnections;
         
         @SerializedName("error")
         public String error;

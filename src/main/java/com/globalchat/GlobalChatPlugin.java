@@ -108,6 +108,9 @@ public class GlobalChatPlugin extends Plugin {
 	@Setter
 	private String theGuesttheClanName;
 
+	private long lastFailedSendMessageTime = 0;
+	private static final long FAILED_SEND_MESSAGE_COOLDOWN = 300000; // 5 minutes
+
 	@Getter
 	private final HashMap<String, ArrayList<String>> previousMessages = new HashMap<>();
 
@@ -147,6 +150,36 @@ public class GlobalChatPlugin extends Plugin {
 			long now = System.currentTimeMillis();
 			pendingCommands.entrySet().removeIf(entry -> now - entry.getValue() > 5000); // 5 second cleanup
 		}, 10, 10, TimeUnit.SECONDS);
+
+		// Auto-reconnect mechanism - try to reconnect every 30 seconds if disconnected
+		scheduler.scheduleAtFixedRate(() -> {
+			try {
+				if (client.getGameState() == GameState.LOGGED_IN && 
+					client.getLocalPlayer() != null && 
+					!ablyManager.isConnected()) {
+					
+					String playerName = client.getLocalPlayer().getName();
+					if (playerName != null && !playerName.isEmpty()) {
+						log.debug("Auto-reconnect attempt for player: " + playerName);
+						ablyManager.startConnection(playerName);
+						
+						// Re-subscribe to channels if we have the necessary info
+						String world = String.valueOf(client.getWorld());
+						ablyManager.subscribeToCorrectChannel("p:" + playerName, world);
+						ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
+						
+						// Re-subscribe to friends chat if available
+						FriendsChatManager friendsChatManager = client.getFriendsChatManager();
+						if (friendsChatManager != null && friendsChatManager.getOwner() != null) {
+							String friendsChat = friendsChatManager.getOwner();
+							ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
+						}
+					}
+				}
+			} catch (Exception e) {
+				log.debug("Error during auto-reconnect attempt", e);
+			}
+		}, 30, 30, TimeUnit.SECONDS);
 
 		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do
@@ -441,9 +474,15 @@ public class GlobalChatPlugin extends Plugin {
 			try {
 				String channel = type + ":" + String.valueOf(client.getWorld());
 				ablyManager.shouldShowMessge(playerName, message, true);
-				ablyManager.publishMessage(type, message, channel, "");
+				boolean publishSuccess = ablyManager.publishMessage(type, message, channel, "");
+				if (!publishSuccess) {
+					// Notify user that message failed to send
+					removeGlobalChatIconFromRecentMessage(message);
+				}
 			} catch (Exception e) {
 				log.error("Error publishing message: '{}'", message, e);
+				// Remove global chat icon from the message since it failed to publish
+				removeGlobalChatIconFromRecentMessage(message);
 			}
 			return true;
 		});
@@ -712,6 +751,24 @@ public class GlobalChatPlugin extends Plugin {
 	@Provides
 	GlobalChatConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(GlobalChatConfig.class);
+	}
+
+	private void removeGlobalChatIconFromRecentMessage(String message) {
+		try {
+			// Rate limiting: only show error message every 5 minutes to prevent spam
+			long now = System.currentTimeMillis();
+			if (now - lastFailedSendMessageTime < FAILED_SEND_MESSAGE_COOLDOWN) {
+				return; // Skip showing message if within cooldown period
+			}
+			
+			if (client.getGameState() == GameState.LOGGED_IN) {
+				lastFailedSendMessageTime = now;
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", 
+					"<col=ff0000>Message failed to send to Global Chat</col>", null);
+			}
+		} catch (Exception e) {
+			log.error("Error notifying about failed message publish", e);
+		}
 	}
 
 	private String getAccountIcon() {
