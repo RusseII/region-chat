@@ -177,7 +177,6 @@ public class AblyManager {
 	private AblyRealtime ablyRealtime;
 	private volatile boolean isConnecting = false;
 	private final ExecutorService publishExecutor;
-	private final Map<String, Long> channelLastActivity = new HashMap<>();
 	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
 	private final Map<Integer, Long> lastErrorMessageTimePerWorld = new HashMap<>();
@@ -242,7 +241,6 @@ public class AblyManager {
 		});
 		
 		// Immediately update local state (safe to do on any thread)
-		channelLastActivity.remove(channelName);
 		channelSubscriptionStatus.remove(channelName);
 	}
 	
@@ -270,36 +268,6 @@ public class AblyManager {
 		}
 	}
 
-	public void cleanupInactiveChannels() {
-		if (ablyRealtime == null) return;
-		
-		long now = System.currentTimeMillis();
-		// Find inactive channels without blocking
-		channelLastActivity.entrySet().removeIf(entry -> {
-			if (now - entry.getValue() > 300000) { // 5 minutes
-				String channelName = entry.getKey();
-				
-				// Move channel detachment to background
-				publishExecutor.submit(() -> {
-					try {
-						ablyRealtime.channels.get(channelName).detach();
-						log.debug("Cleaned up inactive channel: " + channelName);
-					} catch (Exception e) {
-						log.debug("Error cleaning up channel: " + channelName, e);
-					}
-				});
-				
-				// Immediately remove from local state
-				channelSubscriptionStatus.remove(channelName);
-				return true;
-			}
-			return false;
-		});
-	}
-	
-	private void markChannelActive(String channelName) {
-		channelLastActivity.put(channelName, System.currentTimeMillis());
-	}
 
 	public void closeConnection() {
 		// Capture reference to avoid race conditions
@@ -425,8 +393,6 @@ public class AblyManager {
 
 	public void handleMessage(Message message) {
 		if (client.getGameState() == GameState.LOGGED_IN) {
-			// Mark channel as active when receiving messages
-			markChannelActive(message.name);
 			handleAblyMessage(message);
 		}
 	}
@@ -694,9 +660,6 @@ public class AblyManager {
 					
 					// Mark channel as successfully subscribed
 					channelSubscriptionStatus.put(channelName, true);
-					
-					// Mark channel as active for cleanup tracking
-					markChannelActive(channelName);
 					
 					log.debug("Successfully subscribed to channel: {}", channelName);
 				} catch (AblyException err) {
