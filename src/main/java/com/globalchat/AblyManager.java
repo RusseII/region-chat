@@ -175,6 +175,7 @@ public class AblyManager {
 	private final boolean developerMode;
 
 	private AblyRealtime ablyRealtime;
+	private volatile boolean isConnecting = false;
 	private final ExecutorService publishExecutor;
 	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
@@ -195,27 +196,39 @@ public class AblyManager {
 	}
 
 	public void startConnection(String playerName) {
-		// Check if we're already connected or connecting using Ably's connection state
-		if (ablyRealtime != null) {
-			try {
-				io.ably.lib.realtime.ConnectionState state = ablyRealtime.connection.state;
-				if (state == io.ably.lib.realtime.ConnectionState.connected) {
-					log.debug("Already connected, skipping");
-					return;
-				}
-				if (state == io.ably.lib.realtime.ConnectionState.connecting) {
-					log.debug("Connection already in progress, skipping");
-					return;
-				}
-			} catch (Exception e) {
-				log.debug("Error checking connection state", e);
+		// Prevent multiple concurrent connections with atomic check-and-set
+		synchronized (this) {
+			if (isConnecting) {
+				log.debug("Connection already in progress, skipping");
+				return;
 			}
+			
+			// Check if already connected
+			if (ablyRealtime != null) {
+				try {
+					io.ably.lib.realtime.ConnectionState state = ablyRealtime.connection.state;
+					if (state == io.ably.lib.realtime.ConnectionState.connected) {
+						log.debug("Already connected, skipping");
+						return;
+					}
+					if (state == io.ably.lib.realtime.ConnectionState.connecting) {
+						log.debug("Connection already in progress, skipping");
+						return;
+					}
+				} catch (Exception e) {
+					log.debug("Error checking connection state", e);
+				}
+			}
+			
+			isConnecting = true;
 		}
 		
 		try {
 			setupAblyInstances(playerName);
 		} catch (Exception e) {
 			handleAblyError(e);
+		} finally {
+			isConnecting = false;
 		}
 	}
 
@@ -240,28 +253,34 @@ public class AblyManager {
 			}
 		});
 		
-		// Immediately update local state (safe to do on any thread)
-		channelSubscriptionStatus.remove(channelName);
+		// Thread-safe update of local state
+		synchronized (channelSubscriptionStatus) {
+			channelSubscriptionStatus.remove(channelName);
+		}
 	}
 	
 	public boolean isConnected() {
 		if (ablyRealtime == null) return false;
+		
 		try {
 			// Check basic connection state
 			if (ablyRealtime.connection.state != io.ably.lib.realtime.ConnectionState.connected) {
 				return false;
 			}
 			
-			// Check that we have channels subscribed
-			if (channelSubscriptionStatus.isEmpty()) {
-				return false; // No channels subscribed means not connected
+			// Thread-safe check of channel subscriptions
+			synchronized (channelSubscriptionStatus) {
+				// Check that we have channels subscribed
+				if (channelSubscriptionStatus.isEmpty()) {
+					return false; // No channels subscribed means not connected
+				}
+				
+				// Verify ALL channel subscriptions succeeded
+				boolean allChannelsSuccessful = channelSubscriptionStatus.values().stream()
+					.allMatch(status -> status);
+				
+				return allChannelsSuccessful;
 			}
-			
-			// Verify ALL channel subscriptions succeeded
-			boolean allChannelsSuccessful = channelSubscriptionStatus.values().stream()
-				.allMatch(status -> status);
-			
-			return allChannelsSuccessful;
 		} catch (Exception e) {
 			log.debug("Error checking connection state", e);
 			return false;
@@ -668,14 +687,18 @@ public class AblyManager {
 			// Add connection state monitoring
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.disconnected, state -> {
 				log.warn("Connection disconnected: " + state.reason);
-				// Clear channel subscription status since we're disconnected
-				channelSubscriptionStatus.clear();
+				// Thread-safe clear of channel subscription status since we're disconnected
+				synchronized (channelSubscriptionStatus) {
+					channelSubscriptionStatus.clear();
+				}
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.failed, state -> {
 				log.error("Connection failed: " + state.reason);
-				// Clear channel subscription status on failure
-				channelSubscriptionStatus.clear();
+				// Thread-safe clear of channel subscription status on failure
+				synchronized (channelSubscriptionStatus) {
+					channelSubscriptionStatus.clear();
+				}
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.connected, state -> {
@@ -715,6 +738,17 @@ public class AblyManager {
 			return;
 		}
 
+		// Prevent duplicate subscriptions - check if already subscribed
+		synchronized (channelSubscriptionStatus) {
+			Boolean currentStatus = channelSubscriptionStatus.get(channelName);
+			if (currentStatus != null && currentStatus) {
+				log.debug("Already subscribed to channel: {}, skipping", channelName);
+				return;
+			}
+			// Mark as pending subscription to prevent race conditions
+			channelSubscriptionStatus.put(channelName, false);
+		}
+
 		// Prepare channel options on calling thread (fast)
 		try {
 			String paddedKeyString = padKey(key, 16);
@@ -727,20 +761,26 @@ public class AblyManager {
 					Channel currentChannel = ablyRealtime.channels.get(channelName, options);
 					currentChannel.subscribe(this::handleMessage);
 					
-					// Mark channel as successfully subscribed
-					channelSubscriptionStatus.put(channelName, true);
+					// Mark channel as successfully subscribed (thread-safe update)
+					synchronized (channelSubscriptionStatus) {
+						channelSubscriptionStatus.put(channelName, true);
+					}
 					
 					log.debug("Successfully subscribed to channel: {}", channelName);
 				} catch (AblyException err) {
 					log.error("Ably subscribe error for channel: {}", channelName, err);
 					// Mark channel subscription as failed
-					channelSubscriptionStatus.put(channelName, false);
+					synchronized (channelSubscriptionStatus) {
+						channelSubscriptionStatus.put(channelName, false);
+					}
 					handleAblyError(err);
 				}
 			});
 		} catch (AblyException err) {
 			log.error("Error preparing channel options for: {}", channelName, err);
-			channelSubscriptionStatus.put(channelName, false);
+			synchronized (channelSubscriptionStatus) {
+				channelSubscriptionStatus.put(channelName, false);
+			}
 		}
 	}
 
