@@ -110,7 +110,7 @@ public class GlobalChatPlugin extends Plugin {
 
 	private long lastFailedSendMessageTime = 0;
 	private static final long FAILED_SEND_MESSAGE_COOLDOWN = 1800000; // 30 minutes
-	
+
 	private long lastReconnectAttempt = 0;
 	private int reconnectAttempts = 0;
 
@@ -157,35 +157,35 @@ public class GlobalChatPlugin extends Plugin {
 		// Auto-reconnect mechanism - try to reconnect every 10 seconds if disconnected
 		scheduler.scheduleAtFixedRate(() -> {
 			try {
-				if (client.getGameState() == GameState.LOGGED_IN && 
-					client.getLocalPlayer() != null && 
-					!ablyManager.isConnected()) {
-					
+				if (client.getGameState() == GameState.LOGGED_IN &&
+						client.getLocalPlayer() != null &&
+						!ablyManager.isConnected()) {
+
 					long now = System.currentTimeMillis();
-					
+
 					// Implement exponential backoff to prevent spam
-					long backoffTime = Math.min(60000, 10000 * (long)Math.pow(2, Math.min(reconnectAttempts / 3, 4)));
+					long backoffTime = Math.min(60000, 10000 * (long) Math.pow(2, Math.min(reconnectAttempts / 3, 4)));
 					if (now - lastReconnectAttempt < backoffTime) {
 						return; // Skip this attempt due to backoff
 					}
-					
+
 					String playerName = client.getLocalPlayer().getName();
 					if (playerName != null && !playerName.isEmpty()) {
 						lastReconnectAttempt = now;
 						reconnectAttempts++;
-						
+
 						// Only log every 3rd attempt to reduce spam
 						if (reconnectAttempts % 3 == 1) {
 							log.debug("Auto-reconnect attempt #{} for player: {}", reconnectAttempts, playerName);
 						}
-						
+
 						ablyManager.startConnection(playerName);
-						
+
 						// Re-subscribe to channels if we have the necessary info
 						String world = String.valueOf(client.getWorld());
 						ablyManager.subscribeToCorrectChannel("p:" + playerName, world);
 						ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
-						
+
 						// Re-subscribe to friends chat if available
 						FriendsChatManager friendsChatManager = client.getFriendsChatManager();
 						if (friendsChatManager != null && friendsChatManager.getOwner() != null) {
@@ -613,29 +613,31 @@ public class GlobalChatPlugin extends Plugin {
 		if (!config.showPlayerLookup()) {
 			return;
 		}
-		
+
 		String target = Text.removeTags(event.getTarget());
-		
-		// Add option for players in-game (trigger on "Follow" to avoid duplicates)
+
+		// Add option for players in-game (trigger on "Trade" to position it after
+		// Trade)
 		if (event.getOption().equals("Follow") && target.contains("level-")) {
 			log.debug("Adding Check Global Chat option for player: {}", target);
-			client.createMenuEntry(-2)
-				.setOption("GC Status")
-				.setTarget(event.getTarget())
-				.setType(MenuAction.RUNELITE)
-				.onClick(e -> checkPlayerGlobalChatStatus(target));
+			// Use priority -3 to ensure it appears after Trade
+			client.createMenuEntry(1)
+					.setOption("GC Status")
+					.setTarget(event.getTarget())
+					.setType(MenuAction.RUNELITE)
+					.onClick(e -> checkPlayerGlobalChatStatus(target));
 		}
-		
+
 		// Add option for chat messages (when right-clicking a name in any chat)
 		if (event.getOption().equals("Add friend") || event.getOption().equals("Message")) {
-			client.createMenuEntry(-2)
-				.setOption("GC Status")
-				.setTarget(event.getTarget())
-				.setType(MenuAction.RUNELITE)
-				.onClick(e -> checkPlayerGlobalChatStatus(target));
+			client.createMenuEntry(-3)
+					.setOption("GC Status")
+					.setTarget(event.getTarget())
+					.setType(MenuAction.RUNELITE)
+					.onClick(e -> checkPlayerGlobalChatStatus(target));
 		}
 	}
-	
+
 	private void checkPlayerGlobalChatStatus(String playerName) {
 		// Extract just the player name from "PlayerName (level-123)" format
 		String extractedName = playerName;
@@ -643,49 +645,52 @@ public class GlobalChatPlugin extends Plugin {
 			extractedName = extractedName.substring(0, extractedName.indexOf("(level-")).trim();
 		}
 		final String cleanName = Text.sanitize(extractedName);
-		
+
 		// Show checking message
 		String checkingMessage = "<col=ff9040>Checking Global Chat status for " + cleanName + "...</col>";
 		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", checkingMessage, null);
-		
+
 		// Make async request to check status
 		scheduler.execute(() -> {
 			try {
 				// Build the API URL
-				String apiUrl = "https://global-chat-frontend.vercel.app/api/check-player-status?playerName=" + cleanName;
-				
+				String apiUrl = "https://global-chat-frontend.vercel.app/api/check-player-status?playerName="
+						+ cleanName;
+
 				// Create HTTP request
 				Request request = new Request.Builder()
-					.url(apiUrl)
-					.get()
-					.build();
-				
+						.url(apiUrl)
+						.get()
+						.build();
+
 				// Execute the request
 				try (Response response = okHttpClient.newCall(request).execute()) {
 					if (response.isSuccessful() && response.body() != null) {
 						String responseBody = response.body().string();
 						JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
-						
+
 						boolean isConnected = jsonResponse.get("connectedToGlobalChat").getAsBoolean();
-						
+
 						// Show result in chat
 						clientThread.invokeLater(() -> {
 							String statusColor = isConnected ? "00ff00" : "ff0000";
 							String statusText = isConnected ? "CONNECTED" : "NOT CONNECTED";
-							String resultMessage = "<col=" + statusColor + ">Global Chat: " + cleanName + " is " + statusText + "</col>";
+							String resultMessage = "<col=" + statusColor + ">Global Chat: " + cleanName + " is "
+									+ statusText + "</col>";
 							client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", resultMessage, null);
 							return true;
 						});
 					} else {
 						// Handle error response
 						clientThread.invokeLater(() -> {
-							String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName + " (HTTP " + response.code() + ")</col>";
+							String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName
+									+ " (HTTP " + response.code() + ")</col>";
 							client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", errorMessage, null);
 							return true;
 						});
 					}
 				}
-				
+
 			} catch (Exception e) {
 				log.error("Error checking player status for " + cleanName, e);
 				clientThread.invokeLater(() -> {
@@ -781,11 +786,11 @@ public class GlobalChatPlugin extends Plugin {
 			if (now - lastFailedSendMessageTime < FAILED_SEND_MESSAGE_COOLDOWN) {
 				return; // Skip showing message if within cooldown period
 			}
-			
+
 			if (client.getGameState() == GameState.LOGGED_IN) {
 				lastFailedSendMessageTime = now;
-				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", 
-					"<col=ff0000>Message failed to send to Global Chat</col>", null);
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+						"<col=ff0000>Message failed to send to Global Chat</col>", null);
 			}
 		} catch (Exception e) {
 			log.error("Error notifying about failed message publish", e);
