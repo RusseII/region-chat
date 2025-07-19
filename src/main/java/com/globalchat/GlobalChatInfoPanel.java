@@ -707,12 +707,16 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 log.warn("Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
                 
                 // Retry on network failures with exponential backoff
-                int delayMs = 1000 * (int) Math.pow(2, attemptCount); // 1s, 2s, 4s
-                Timer retryTimer = new Timer(delayMs, retryEvent -> {
-                    fetchConnectionStatsWithRetry(attemptCount + 1);
-                });
-                retryTimer.setRepeats(false);
-                retryTimer.start();
+                if (attemptCount < 2) {
+                    int delayMs = 1000 * (int) Math.pow(2, attemptCount); // 1s, 2s, 4s
+                    SwingUtilities.invokeLater(() -> {
+                        Timer retryTimer = new Timer(delayMs, retryEvent -> {
+                            fetchConnectionStatsWithRetry(attemptCount + 1);
+                        });
+                        retryTimer.setRepeats(false);
+                        retryTimer.start();
+                    });
+                }
             }
 
             @Override
@@ -728,11 +732,13 @@ public class GlobalChatInfoPanel extends PluginPanel {
                         // Retry on HTTP errors (5xx server errors, but not 4xx client errors)
                         if (response.code() >= 500 && attemptCount < 2) {
                             int delayMs = 2000 * (attemptCount + 1); // 2s, 4s
-                            Timer retryTimer = new Timer(delayMs, retryEvent -> {
-                                fetchConnectionStatsWithRetry(attemptCount + 1);
+                            SwingUtilities.invokeLater(() -> {
+                                Timer retryTimer = new Timer(delayMs, retryEvent -> {
+                                    fetchConnectionStatsWithRetry(attemptCount + 1);
+                                });
+                                retryTimer.setRepeats(false);
+                                retryTimer.start();
                             });
-                            retryTimer.setRepeats(false);
-                            retryTimer.start();
                         }
                     }
                 } finally {

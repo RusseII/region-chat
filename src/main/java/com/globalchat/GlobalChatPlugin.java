@@ -452,16 +452,19 @@ public class GlobalChatPlugin extends Plugin {
 				String originalMessage = cleanedMessage;
 				pendingCommands.put(originalMessage, System.currentTimeMillis());
 
+				// Capture MessageNode reference on client thread (safe)
+				final MessageNode messageNode = event.getMessageNode();
+
 				// Schedule multiple checks to catch transformation
 				// First check at 100ms
 				scheduler.schedule(() -> {
-					checkForTransformation(originalMessage, cleanedName, event, 1);
+					checkForTransformation(originalMessage, cleanedName, messageNode, 1);
 				}, 100, TimeUnit.MILLISECONDS);
 
 				// Second check at 250ms if first fails
 				scheduler.schedule(() -> {
 					if (pendingCommands.containsKey(originalMessage)) {
-						checkForTransformation(originalMessage, cleanedName, event, 2);
+						checkForTransformation(originalMessage, cleanedName, messageNode, 2);
 					}
 				}, 250, TimeUnit.MILLISECONDS);
 
@@ -473,29 +476,40 @@ public class GlobalChatPlugin extends Plugin {
 		handleAllGlobalMessages(event, cleanedMessage, cleanedName, isLocalPlayerSendingMessage);
 	}
 
-	private void checkForTransformation(String originalMessage, String playerName, ChatMessage originalEvent,
+	private void checkForTransformation(String originalMessage, String playerName, MessageNode messageNode,
 			int attempt) {
 		try {
 			log.debug("Checking transformation attempt #{} for command: '{}'", attempt, originalMessage);
 
-			MessageNode messageNode = originalEvent.getMessageNode();
 			if (messageNode != null) {
-				String runeLiteMessage = messageNode.getRuneLiteFormatMessage();
-				String currentMessage = runeLiteMessage != null ? Text.removeTags(runeLiteMessage)
-						: Text.removeTags(originalEvent.getMessage());
+				// Access MessageNode from client thread to ensure thread safety
+				clientThread.invokeLater(() -> {
+					try {
+						String runeLiteMessage = messageNode.getRuneLiteFormatMessage();
+						String currentMessage = runeLiteMessage != null ? Text.removeTags(runeLiteMessage)
+								: originalMessage; // Fallback to original if no RuneLite message
 
-				if (!originalMessage.equals(currentMessage)) {
-					log.debug("Command transformed: '{}' -> '{}'", originalMessage, currentMessage);
-					commandTransformations.put(originalMessage, currentMessage);
-					// Send the transformed message (without color formatting)
-					publishMessageToGlobalChat("w", currentMessage, playerName, "TRANSFORMATION_DETECTED");
-					pendingCommands.remove(originalMessage);
-				} else if (attempt >= 2) {
-					// Final attempt - no transformation found, send original
-					publishMessageToGlobalChat("w", originalMessage, playerName, "COMMAND_NO_TRANSFORMATION");
-					pendingCommands.remove(originalMessage);
-				}
-				// If attempt < 2 and no transformation, just wait for retry
+						if (!originalMessage.equals(currentMessage)) {
+							log.debug("Command transformed: '{}' -> '{}'", originalMessage, currentMessage);
+							commandTransformations.put(originalMessage, currentMessage);
+							// Send the transformed message (without color formatting)
+							publishMessageToGlobalChat("w", currentMessage, playerName, "TRANSFORMATION_DETECTED");
+							pendingCommands.remove(originalMessage);
+						} else if (attempt >= 2) {
+							// Final attempt - no transformation found, send original
+							publishMessageToGlobalChat("w", originalMessage, playerName, "COMMAND_NO_TRANSFORMATION");
+							pendingCommands.remove(originalMessage);
+						}
+						// If attempt < 2 and no transformation, just wait for retry
+					} catch (Exception e) {
+						log.error("Error accessing MessageNode for '{}': ", originalMessage, e);
+						if (attempt >= 2) {
+							publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_ACCESS_ERROR");
+							pendingCommands.remove(originalMessage);
+						}
+					}
+					return true;
+				});
 			} else {
 				if (attempt >= 2) {
 					publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_NULL");
