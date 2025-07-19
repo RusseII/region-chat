@@ -571,7 +571,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         // panel.add(topWorldLabel, gbc);
 
         // Start periodic updates
-        startUserCountUpdates();
+        // startUserCountUpdates(); // Commented out - online users disabled
         startConnectionStatusUpdates();
 
         return panel;
@@ -639,15 +639,18 @@ public class GlobalChatInfoPanel extends PluginPanel {
                             
                             // Update UI on EDT
                             javax.swing.SwingUtilities.invokeLater(() -> {
-                                if (data.totalOnline > 0) {
-                                    totalUsersLabel.setText("Total Online: " + data.totalOnline + " players");
-                                    totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                } else {
-                                    totalUsersLabel.setText("Total Online: Unavailable");
-                                    totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                // Only update if the labels exist (not commented out)
+                                if (totalUsersLabel != null) {
+                                    if (data.totalOnline > 0) {
+                                        totalUsersLabel.setText("Total Online: " + data.totalOnline + " players");
+                                        totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                    } else {
+                                        totalUsersLabel.setText("Total Online: Unavailable");
+                                        totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                    }
                                 }
                                 
-                                if (data.currentWorldId != null) {
+                                if (data.currentWorldId != null && currentWorldUsersLabel != null) {
                                     if (data.currentWorldCount > 0) {
                                         currentWorldUsersLabel.setText("World " + data.currentWorldId + ": " + data.currentWorldCount + " players");
                                         currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
@@ -655,18 +658,20 @@ public class GlobalChatInfoPanel extends PluginPanel {
                                         currentWorldUsersLabel.setText("World " + data.currentWorldId + ": 0 players");
                                         currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
                                     }
-                                } else {
+                                } else if (currentWorldUsersLabel != null) {
                                     currentWorldUsersLabel.setText("Current World: Not connected");
                                     currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
                                 }
                                 
                                 // Update top world
-                                if (data.topWorldId != null && data.topWorldCount > 0) {
-                                    topWorldLabel.setText("Top World " + data.topWorldId + ": " + data.topWorldCount + " players");
-                                    topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                } else {
-                                    topWorldLabel.setText("Top World: No data");
-                                    topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                if (topWorldLabel != null) {
+                                    if (data.topWorldId != null && data.topWorldCount > 0) {
+                                        topWorldLabel.setText("Top World " + data.topWorldId + ": " + data.topWorldCount + " players");
+                                        topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                    } else {
+                                        topWorldLabel.setText("Top World: No data");
+                                        topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                                    }
                                 }
                             });
                         }
@@ -999,7 +1004,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
     }
 
     public void refreshUserCounts() {
-        updateUserCounts();
+        // updateUserCounts(); // Commented out - online users disabled
     }
     
     public void cleanup() {
@@ -1031,9 +1036,13 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private void startConnectionStatusUpdates() {
         // Update immediately
         updateConnectionStatus();
+        fetchConnectionStats();
         
-        // Update every 2 seconds
-        connectionStatusTimer = new Timer(2000, e -> updateConnectionStatus());
+        // Update every 30 seconds (connection status and stats)
+        connectionStatusTimer = new Timer(30000, e -> {
+            updateConnectionStatus();
+            fetchConnectionStats();
+        });
         connectionStatusTimer.start();
     }
 }
