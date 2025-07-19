@@ -673,8 +673,6 @@ public class GlobalChatInfoPanel extends PluginPanel {
                                 }
                             });
                         }
-                    } else {
-                        log.debug("Failed to fetch user counts: HTTP {}", response.code());
                     }
                 } finally {
                     response.close();
