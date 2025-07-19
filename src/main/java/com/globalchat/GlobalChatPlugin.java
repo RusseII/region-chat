@@ -51,6 +51,7 @@ import net.runelite.api.events.ClanChannelChanged;
 import net.runelite.api.events.FriendsChatChanged;
 import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.menus.MenuManager;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
@@ -62,6 +63,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.MenuAction;
 import net.runelite.client.eventbus.Subscribe;
@@ -137,6 +139,9 @@ public class GlobalChatPlugin extends Plugin {
 	@Inject
 	private Gson gson;
 
+	@Inject
+	private MenuManager menuManager;
+
 	private ScheduledExecutorService scheduler;
 
 	// Tracking for chat command transformations
@@ -157,46 +162,56 @@ public class GlobalChatPlugin extends Plugin {
 		// Auto-reconnect mechanism - try to reconnect every 10 seconds if disconnected
 		scheduler.scheduleAtFixedRate(() -> {
 			try {
-				if (client.getGameState() == GameState.LOGGED_IN &&
-						client.getLocalPlayer() != null &&
-						!ablyManager.isConnected()) {
+				// Move client data access to client thread to avoid thread safety issues
+				clientThread.invokeLater(() -> {
+					if (client.getGameState() == GameState.LOGGED_IN &&
+							client.getLocalPlayer() != null &&
+							!ablyManager.isConnected()) {
 
-					long now = System.currentTimeMillis();
+						long now = System.currentTimeMillis();
 
-					// Implement exponential backoff to prevent spam
-					long backoffTime = Math.min(60000, 10000 * (long) Math.pow(2, Math.min(reconnectAttempts / 3, 4)));
-					if (now - lastReconnectAttempt < backoffTime) {
-						return; // Skip this attempt due to backoff
-					}
-
-					String playerName = client.getLocalPlayer().getName();
-					if (playerName != null && !playerName.isEmpty()) {
-						lastReconnectAttempt = now;
-						reconnectAttempts++;
-
-						// Only log every 3rd attempt to reduce spam
-						if (reconnectAttempts % 3 == 1) {
-							log.debug("Auto-reconnect attempt #{} for player: {}", reconnectAttempts, playerName);
+						// Implement exponential backoff to prevent spam
+						long backoffTime = Math.min(60000, 10000 * (long) Math.pow(2, Math.min(reconnectAttempts / 3, 4)));
+						if (now - lastReconnectAttempt < backoffTime) {
+							return true; // Skip this attempt due to backoff
 						}
 
-						ablyManager.startConnection(playerName);
-
-						// Re-subscribe to channels if we have the necessary info
+						String playerName = client.getLocalPlayer().getName();
 						String world = String.valueOf(client.getWorld());
-						ablyManager.subscribeToCorrectChannel("p:" + playerName, world);
-						ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
+						if (playerName != null && !playerName.isEmpty()) {
+							lastReconnectAttempt = now;
+							reconnectAttempts++;
 
-						// Re-subscribe to friends chat if available
-						FriendsChatManager friendsChatManager = client.getFriendsChatManager();
-						if (friendsChatManager != null && friendsChatManager.getOwner() != null) {
-							String friendsChat = friendsChatManager.getOwner();
-							ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
+							// Only log every 3rd attempt to reduce spam
+							if (reconnectAttempts % 3 == 1) {
+								log.debug("Auto-reconnect attempt #{} for player: {}", reconnectAttempts, playerName);
+							}
+
+							// Execute reconnection off client thread
+							scheduler.execute(() -> {
+								ablyManager.startConnection(playerName);
+
+								// Re-subscribe to channels using captured world info
+								ablyManager.subscribeToCorrectChannel("p:" + playerName, world);
+								ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
+
+								// Re-subscribe to friends chat if available
+								clientThread.invokeLater(() -> {
+									FriendsChatManager friendsChatManager = client.getFriendsChatManager();
+									if (friendsChatManager != null && friendsChatManager.getOwner() != null) {
+										String friendsChat = friendsChatManager.getOwner();
+										ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
+									}
+									return true;
+								});
+							});
 						}
+					} else if (ablyManager.isConnected()) {
+						// Reset reconnect attempts on successful connection
+						reconnectAttempts = 0;
 					}
-				} else if (ablyManager.isConnected()) {
-					// Reset reconnect attempts on successful connection
-					reconnectAttempts = 0;
-				}
+					return true;
+				});
 			} catch (Exception e) {
 				log.debug("Error during auto-reconnect attempt", e);
 			}
@@ -212,6 +227,11 @@ public class GlobalChatPlugin extends Plugin {
 		log.debug("Created GlobalChatInfoPanel");
 
 		log.debug("Global Chat plugin started successfully");
+
+		// Add player menu item for GC Status if lookup is enabled
+		if (config.showPlayerLookup()) {
+			menuManager.addPlayerMenuItem("GC Status");
+		}
 
 		// Create navigation button with simple icon
 		navButton = NavigationButton.builder()
@@ -243,6 +263,11 @@ public class GlobalChatPlugin extends Plugin {
 		// Clean up UI panel
 		if (navButton != null) {
 			clientToolbar.removeNavigation(navButton);
+		}
+
+		// Clean up menu manager
+		if (config.showPlayerLookup()) {
+			menuManager.removePlayerMenuItem("GC Status");
 		}
 
 		// Clean up info panel
@@ -608,6 +633,15 @@ public class GlobalChatPlugin extends Plugin {
 	}
 
 	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event) {
+		// Handle player menu clicks from MenuManager
+		if (event.getMenuAction() == MenuAction.RUNELITE_PLAYER && event.getMenuOption().equals("GC Status")) {
+			String target = Text.removeTags(event.getMenuTarget());
+			checkPlayerGlobalChatStatus(target);
+		}
+	}
+
+	@Subscribe
 	public void onMenuEntryAdded(MenuEntryAdded event) {
 		// Check if player lookup feature is enabled
 		if (!config.showPlayerLookup()) {
@@ -616,21 +650,9 @@ public class GlobalChatPlugin extends Plugin {
 
 		String target = Text.removeTags(event.getTarget());
 
-		// Add option for players in-game (trigger on "Trade" to position it after
-		// Trade)
-		if (event.getOption().equals("Follow") && target.contains("level-")) {
-			log.debug("Adding Check Global Chat option for player: {}", target);
-			// Use priority -3 to ensure it appears after Trade
-			client.createMenuEntry(1)
-					.setOption("GC Status")
-					.setTarget(event.getTarget())
-					.setType(MenuAction.RUNELITE)
-					.onClick(e -> checkPlayerGlobalChatStatus(target));
-		}
-
 		// Add option for chat messages (when right-clicking a name in any chat)
 		if (event.getOption().equals("Add friend") || event.getOption().equals("Message")) {
-			client.createMenuEntry(-3)
+			client.createMenuEntry(-2)
 					.setOption("GC Status")
 					.setTarget(event.getTarget())
 					.setType(MenuAction.RUNELITE)
@@ -646,9 +668,12 @@ public class GlobalChatPlugin extends Plugin {
 		}
 		final String cleanName = Text.sanitize(extractedName);
 
-		// Show checking message
-		String checkingMessage = "<col=ff9040>Checking Global Chat status for " + cleanName + "...</col>";
-		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", checkingMessage, null);
+		// Show checking message on client thread
+		clientThread.invokeLater(() -> {
+			String checkingMessage = "<col=ff9040>Checking Global Chat status for " + cleanName + "...</col>";
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", checkingMessage, null);
+			return true;
+		});
 
 		// Make async request to check status
 		scheduler.execute(() -> {
