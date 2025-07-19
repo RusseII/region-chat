@@ -86,7 +86,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private Timer connectionStatusTimer;
     private long lastConnectionStatsUpdate = 0;
     private static final long CONNECTION_STATS_CACHE_TIME = 30000; // 30 seconds
-    private ConnectionStatsResponse cachedConnectionStats;
+    private ConnectionStatsResponse cachedConnectionStats = null; // Explicitly null
     private boolean connectionStatsInitialized = false;
     private volatile boolean fetchingConnectionStats = false;
 
@@ -534,8 +534,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
         panel.add(connectionStatusLabel, gbc);
         gbc.gridy++;
 
-        // Connection limits (dynamic)
-        connectionLimitsLabel = new JLabel("Loading connection info...");
+        // Connection limits (dynamic) - start with loading message
+        connectionLimitsLabel = new JLabel("<html>Loading connection info...</html>");
         connectionLimitsLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
         connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         gbc.insets = new Insets(0, 0, 10, 0);
@@ -735,7 +735,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
                         log.debug("Fresh connection stats API response: {}", responseBody);
                         ConnectionStatsResponse stats = gson.fromJson(responseBody, ConnectionStatsResponse.class);
                         
-                        if (stats != null && stats.maxConnections > 0 && stats.currentConnections >= 0) {
+                        // Validate response thoroughly - reject any suspicious 0 values or defaults
+                        if (stats != null && 
+                            stats.maxConnections > 0 && 
+                            stats.currentConnections > 0 && // Must have some connections
+                            stats.maxConnections > 50) { // Sanity check for reasonable max
                             log.debug("Successfully parsed connection stats - Connections: {}/{}", 
                                 stats.currentConnections, stats.maxConnections);
                             
@@ -781,6 +785,13 @@ public class GlobalChatInfoPanel extends PluginPanel {
     
     private void updateConnectionDisplay(ConnectionStatsResponse stats) {
         SwingUtilities.invokeLater(() -> {
+            // Safety check - never display invalid data
+            if (stats == null || stats.maxConnections <= 0) {
+                log.warn("Attempted to display invalid connection stats: {}", stats);
+                setConnectionDisplayText("Loading connection info...", ColorScheme.LIGHT_GRAY_COLOR);
+                return;
+            }
+            
             double connectionUtilization = stats.currentConnections * 100.0 / stats.maxConnections;
             
             String statusText;
