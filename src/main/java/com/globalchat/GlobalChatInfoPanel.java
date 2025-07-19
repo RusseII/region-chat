@@ -682,24 +682,29 @@ public class GlobalChatInfoPanel extends PluginPanel {
             return;
         }
         
+        // Always show cached data first if available (prevents showing 0 during world hops)
+        if (cachedConnectionStats != null) {
+            updateConnectionDisplay(cachedConnectionStats);
+        }
+        
         long now = System.currentTimeMillis();
         
-        // Use cached data if it's fresh (less than 30 seconds old)
-        if (cachedConnectionStats != null && (now - lastConnectionStatsUpdate) < CONNECTION_STATS_CACHE_TIME) {
-            log.debug("Using cached connection stats");
-            updateConnectionDisplay(cachedConnectionStats);
-            return;
+        // Only fetch fresh data if cache is old (more than 30 seconds)
+        if (cachedConnectionStats == null || (now - lastConnectionStatsUpdate) >= CONNECTION_STATS_CACHE_TIME) {
+            log.debug("Fetching fresh connection stats - Cache age: {}ms", 
+                cachedConnectionStats != null ? (now - lastConnectionStatsUpdate) : 0);
+            
+            // Fetch fresh data in background
+            fetchFreshConnectionStats();
+        } else {
+            log.debug("Using cached connection stats - Cache age: {}ms", (now - lastConnectionStatsUpdate));
         }
-        
-        // Add debug logging for game state
-        if (client != null) {
-            log.debug("Fetching fresh connection stats - Game state: {}", client.getGameState());
-        }
-
+    }
+    
+    private void fetchFreshConnectionStats() {
         // Use a background thread to fetch fresh connection info
         new Thread(() -> {
             try {
-                // Make request to get connection stats (you may need to adjust this endpoint)
                 Request request = new Request.Builder()
                     .url("https://global-chat-frontend.vercel.app/api/stats/connections")
                     .build();
@@ -711,30 +716,24 @@ public class GlobalChatInfoPanel extends PluginPanel {
                         ConnectionStatsResponse stats = gson.fromJson(responseBody, ConnectionStatsResponse.class);
                         
                         if (stats != null) {
-                            log.debug("Connection stats parsed - Connections: {}/{}, Channels: {}/{}", 
-                                stats.currentConnections, stats.maxConnections, 
-                                stats.currentChannels, stats.maxChannels);
+                            log.debug("Fresh connection stats - Connections: {}/{}", 
+                                stats.currentConnections, stats.maxConnections);
                             
                             // Cache the successful response
                             cachedConnectionStats = stats;
                             lastConnectionStatsUpdate = System.currentTimeMillis();
                             
+                            // Update display with fresh data
                             updateConnectionDisplay(stats);
                         }
                     } else {
-                        log.debug("Failed to fetch connection stats: HTTP {}", response.code());
-                        SwingUtilities.invokeLater(() -> {
-                            connectionLimitsLabel.setText("<html><b>Connection Status:</b> HTTP " + response.code() + "</html>");
-                            connectionLimitsLabel.setForeground(Color.ORANGE);
-                        });
+                        log.debug("Failed to fetch fresh connection stats: HTTP {}", response.code());
+                        // Don't update display on error - keep showing cached data
                     }
                 }
             } catch (Exception e) {
-                log.error("Failed to fetch connection stats: {}", e.getMessage(), e);
-                SwingUtilities.invokeLater(() -> {
-                    connectionLimitsLabel.setText("<html><b>Connection Status:</b> Error: " + e.getMessage() + "</html>");
-                    connectionLimitsLabel.setForeground(Color.RED);
-                });
+                log.debug("Error fetching fresh connection stats: {}", e.getMessage());
+                // Don't update display on error - keep showing cached data
             }
         }).start();
     }
