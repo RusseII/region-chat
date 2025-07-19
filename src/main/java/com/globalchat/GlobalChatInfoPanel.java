@@ -725,9 +725,12 @@ public class GlobalChatInfoPanel extends PluginPanel {
         // Use a background thread to fetch fresh connection info
         new Thread(() -> {
             try {
+                log.debug("Starting connection stats fetch...");
                 Request request = new Request.Builder()
                     .url("https://global-chat-frontend.vercel.app/api/stats/connections")
                     .build();
+                
+                log.debug("Making HTTP request to: {}", request.url());
 
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
@@ -735,11 +738,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
                         log.debug("Fresh connection stats API response: {}", responseBody);
                         ConnectionStatsResponse stats = gson.fromJson(responseBody, ConnectionStatsResponse.class);
                         
-                        // Validate response thoroughly - reject any suspicious 0 values or defaults
+                        // Validate response - ensure we have reasonable data
                         if (stats != null && 
-                            stats.maxConnections > 0 && 
-                            stats.currentConnections > 0 && // Must have some connections
-                            stats.maxConnections > 50) { // Sanity check for reasonable max
+                            stats.maxConnections > 50 && // Sanity check for reasonable max
+                            stats.currentConnections >= 0) { // Allow 0 connections (could be valid)
                             log.debug("Successfully parsed connection stats - Connections: {}/{}", 
                                 stats.currentConnections, stats.maxConnections);
                             
@@ -751,9 +753,12 @@ public class GlobalChatInfoPanel extends PluginPanel {
                             // Update display with fresh data
                             updateConnectionDisplay(stats);
                         } else {
-                            log.warn("Invalid connection stats response - max: {}, current: {}, raw: {}", 
+                            log.error("REJECTED connection stats response - max: {}, current: {}, validation: maxConn>50={}, currConn>=0={}, notNull={}, raw: {}", 
                                 stats != null ? stats.maxConnections : "null",
                                 stats != null ? stats.currentConnections : "null",
+                                stats != null ? (stats.maxConnections > 50) : "null",
+                                stats != null ? (stats.currentConnections >= 0) : "null",
+                                stats != null,
                                 responseBody);
                         }
                     } else {
