@@ -165,19 +165,7 @@ public class AblyManager {
 			boolean allChannelsSuccessful = channelSubscriptionStatus.values().stream()
 				.allMatch(status -> status);
 			
-			if (!allChannelsSuccessful) {
-				return false; // Some channel subscriptions failed
-			}
-			
-			// Verify all subscribed channels have recent activity (within last 10 minutes)
-			long tenMinutesAgo = System.currentTimeMillis() - 600000;
-			boolean allChannelsActive = channelSubscriptionStatus.keySet().stream()
-				.allMatch(channelName -> {
-					Long lastActivity = channelLastActivity.get(channelName);
-					return lastActivity != null && lastActivity > tenMinutesAgo;
-				});
-			
-			return allChannelsActive;
+			return allChannelsSuccessful;
 		} catch (Exception e) {
 			log.debug("Error checking connection state", e);
 			return false;
