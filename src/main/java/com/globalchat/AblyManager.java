@@ -26,6 +26,9 @@ package com.globalchat;
 
 import java.util.HashSet;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -72,6 +75,84 @@ public class AblyManager {
 
 	private static final int OVERHEAD_TEXT_TICK_TIMEOUT = 5;
 	private static final int CYCLES_FOR_OVERHEAD_TEXT = OVERHEAD_TEXT_TICK_TIMEOUT * CYCLES_PER_GAME_TICK;
+	
+	// Initialize spam messages once as a static final set
+	private static final Set<String> SPAM_MESSAGES = new HashSet<>(Arrays.asList(
+		"In the name of Saradomin, protector of us all, I now join you in the eyes of Saradomin.",
+		"Thy cause was false, thy skills did lack; See you in Lumbridge when you get back.",
+		"Go in peace in the name of Saradomin; May his glory shine upon you like the sun.",
+		"The currency of goodness is honour; It retains its value through scarcity. This is Saradomin's wisdom.",
+		"Two great warriors, joined by hand, to spread destruction across the land. In Zamorak's name, now two are one.",
+		"The weak deserve to die, so the strong may flourish. This is the creed of Zamorak.",
+		"May your bloodthirst never be sated, and may all your battles be glorious. Zamorak bring you strength.",
+		"There is no opinion that cannot be proven true...by crushing those who choose to disagree with it. Zamorak give me strength!",
+		"Battles are not lost and won; They simply remove the weak from the equation. Zamorak give me strength!",
+		"Those who fight, then run away, shame Zamorak with their cowardice. Zamorak give me strength!",
+		"Battle is by those who choose to disagree with it. Zamorak give me strength!",
+		"Strike fast, strike hard, strike true: The strength of Zamorak will be with you. Zamorak give me strength!",
+		"Light and dark, day and night, balance arises from contrast. I unify thee in the name of Guthix.",
+		"Thy death was not in vain, for it brought some balance to the world. May Guthix bring you rest.",
+		"May you walk the path, and never fall, for Guthix walks beside thee on thy journey. May Guthix bring you peace.",
+		"The trees, the earth, the sky, the waters; All play their part upon this land. May Guthix bring you balance.",
+		"Big High War God want great warriors. Because you can make more... I bind you in Big High War God name.",
+		"You not worthy of Big High War God; you die too easy.",
+		"Big High War God make you strong... so you smash enemies.",
+		"War is best, peace is for weak. If you not worthy of Big High War God... you get made dead soon.",
+		"As ye vow to be at peace with each other... and to uphold high values of morality and friendship... I now pronounce you united in the law of Armadyl.",
+		"Thou didst fight true... but the foe was too great. May thy return be as swift as the flight of Armadyl.",
+		"For thy task is lawful... May the blessing of Armadyl be upon thee.",
+		"Peace shall bring thee wisdom; Wisdom shall bring thee peace. This is the law of Armadyl.",
+		"Ye faithful and loyal to the Great Lord... May ye together succeed in your deeds. Ye are now joined by the greatest power.",
+		"Thy faith faltered, no power could save thee. Like the Great Lord, one day you shall rise again.",
+		"By day or night, in defeat or victory... the power of the Great Lord be with thee.",
+		"Follower of the Great Lord be relieved: One day your loyalty will be rewarded. Power to the Great Lord!",
+		"Just say neigh to gambling!", "Eww stinky!", "I will burn with you.",
+		"Burn with me!", "Here fishy fishies!",
+		"For Camelot!", "Raarrrrrgggggghhhhhhh", "Taste vengeance!", "Smashing!", "*yawn*",
+		// Messages from tobMistakeTrackerSpam
+		"I'm planking!",
+		"I'm drowning in Maiden's blood!",
+		"I'm stunned!",
+		"Bye!",
+		"I'm eating cabbages!",
+		"I can't count to four!",
+		"I'm PKing my team!",
+		"I was stuck in a web!",
+		"I'm healing Verzik!",
+		// Messages from TOAMistakeTrackerSpam
+		"Argh! It burns!",
+		"Come on and slam!",
+		"Ah! It burns!",
+		"Embrace Darkness!",
+		"I'm too slow!",
+		"I'm griefing!",
+		"?",
+		"This jug feels a little light...",
+		"I'm drowning in acid!",
+		"I'm on a blood cloud!",
+		"Nihil!",
+		"I'm surfing!",
+		"I'm exploding!",
+		"The swarms are going in!",
+		"I've been hatched!",
+		"I'm fuming!",
+		"The sky is falling!",
+		"I've been corrupted!",
+		"It's venomous!",
+		"Come on and slam!|And welcome to the jam!",
+		"I got rocked!",
+		"They see me rollin'...",
+		"It's raining!",
+		"Who put that there?",
+		"I'm going down!",
+		"I'm disco-ing!",
+		"I'm dancing!",
+		"I'm winded!",
+		"I'm getting bombed!",
+		"I'm in jail!",
+		"What even was that attack?",
+		"I'm tripping!"
+	));
 
 	private final Client client;
 	private final SupporterManager supporterManager;
@@ -95,6 +176,7 @@ public class AblyManager {
 
 	private AblyRealtime ablyRealtime;
 	private volatile boolean isConnecting = false;
+	private final ExecutorService publishExecutor;
 	private final Map<String, Long> channelLastActivity = new HashMap<>();
 	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
@@ -107,6 +189,11 @@ public class AblyManager {
 		this.config = config;
 		this.developerMode = developerMode;
 		this.supporterManager = supporterManager;
+		this.publishExecutor = Executors.newSingleThreadExecutor(r -> {
+			Thread t = new Thread(r, "AblyPublisher");
+			t.setDaemon(true);
+			return t;
+		});
 	}
 
 	public void startConnection(String playerName) {
@@ -144,13 +231,19 @@ public class AblyManager {
 			return;
 		}
 		
-		try {
-			ablyRealtime.channels.get(channelName).detach();
-			channelLastActivity.remove(channelName);
-			channelSubscriptionStatus.remove(channelName);
-		} catch (AblyException err) {
-			log.error("error", err);
-		}
+		// Move channel detachment to background executor
+		publishExecutor.submit(() -> {
+			try {
+				ablyRealtime.channels.get(channelName).detach();
+				log.debug("Closed channel: {}", channelName);
+			} catch (AblyException err) {
+				log.error("Error detaching from channel: {}", channelName, err);
+			}
+		});
+		
+		// Immediately update local state (safe to do on any thread)
+		channelLastActivity.remove(channelName);
+		channelSubscriptionStatus.remove(channelName);
 	}
 	
 	public boolean isConnected() {
@@ -181,15 +274,23 @@ public class AblyManager {
 		if (ablyRealtime == null) return;
 		
 		long now = System.currentTimeMillis();
+		// Find inactive channels without blocking
 		channelLastActivity.entrySet().removeIf(entry -> {
 			if (now - entry.getValue() > 300000) { // 5 minutes
-				try {
-					ablyRealtime.channels.get(entry.getKey()).detach();
-					channelSubscriptionStatus.remove(entry.getKey());
-					log.debug("Cleaned up inactive channel: " + entry.getKey());
-				} catch (Exception e) {
-					log.debug("Error cleaning up channel: " + entry.getKey(), e);
-				}
+				String channelName = entry.getKey();
+				
+				// Move channel detachment to background
+				publishExecutor.submit(() -> {
+					try {
+						ablyRealtime.channels.get(channelName).detach();
+						log.debug("Cleaned up inactive channel: " + channelName);
+					} catch (Exception e) {
+						log.debug("Error cleaning up channel: " + channelName, e);
+					}
+				});
+				
+				// Immediately remove from local state
+				channelSubscriptionStatus.remove(channelName);
 				return true;
 			}
 			return false;
@@ -201,26 +302,43 @@ public class AblyManager {
 	}
 
 	public void closeConnection() {
-		if (ablyRealtime != null) {
-			try {
-				// Explicitly close all channels first
+		// Capture reference to avoid race conditions
+		final AblyRealtime connectionToClose = ablyRealtime;
+		
+		// Immediately null out the reference to prevent new operations
+		ablyRealtime = null;
+		
+		if (connectionToClose != null) {
+			// Move the actual closing to background to avoid blocking
+			publishExecutor.submit(() -> {
 				try {
-					// Just force close - channel iteration not available in this API
-					log.debug("Forcing connection close");
+					log.debug("Closing Ably connection in background");
+					connectionToClose.close();
+					log.debug("Connection properly closed");
 				} catch (Exception e) {
-					log.debug("Error during channel cleanup", e);
+					log.error("Error closing connection", e);
 				}
-				
-				// Force close connection
-				ablyRealtime.close();
-				
-				log.debug("Connection properly closed");
-				
-			} catch (Exception e) {
-				log.error("Error closing connection", e);
-			} finally {
-				ablyRealtime = null;
+			});
+		}
+		
+		// Note: Don't shutdown executor here since we just submitted a task to it
+		// The executor will be shut down when the plugin stops
+	}
+	
+	public void shutdown() {
+		// First close any active connection
+		closeConnection();
+		
+		// Then shutdown the executor after a brief delay to allow pending tasks to complete
+		try {
+			publishExecutor.shutdown();
+			if (!publishExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+				publishExecutor.shutdownNow();
+				log.debug("Force shutdown publish executor");
 			}
+		} catch (InterruptedException e) {
+			publishExecutor.shutdownNow();
+			Thread.currentThread().interrupt();
 		}
 	}
 
@@ -237,110 +355,13 @@ public class AblyManager {
 	}
 
 	public boolean isSpam(String message) {
-
-		Set<String> spamMessages = new HashSet<>();
-		spamMessages
-				.addAll(Arrays.asList(
-						"In the name of Saradomin, protector of us all, I now join you in the eyes of Saradomin.",
-						"Thy cause was false, thy skills did lack; See you in Lumbridge when you get back.",
-						"Go in peace in the name of Saradomin; May his glory shine upon you like the sun.",
-						"The currency of goodness is honour; It retains its value through scarcity. This is Saradomin's wisdom.",
-						"Two great warriors, joined by hand, to spread destruction across the land. In Zamorak's name, now two are one.",
-						"The weak deserve to die, so the strong may flourish. This is the creed of Zamorak.",
-						"May your bloodthirst never be sated, and may all your battles be glorious. Zamorak bring you strength.",
-						"There is no opinion that cannot be proven true...by crushing those who choose to disagree with it. Zamorak give me strength!",
-						"Battles are not lost and won; They simply remove the weak from the equation. Zamorak give me strength!",
-						"Those who fight, then run away, shame Zamorak with their cowardice. Zamorak give me strength!",
-						"Battle is by those who choose to disagree with it. Zamorak give me strength!",
-						"Strike fast, strike hard, strike true: The strength of Zamorak will be with you. Zamorak give me strength!",
-						"Light and dark, day and night, balance arises from contrast. I unify thee in the name of Guthix.",
-						"Thy death was not in vain, for it brought some balance to the world. May Guthix bring you rest.",
-						"May you walk the path, and never fall, for Guthix walks beside thee on thy journey. May Guthix bring you peace.",
-						"The trees, the earth, the sky, the waters; All play their part upon this land. May Guthix bring you balance.",
-						"Big High War God want great warriors. Because you can make more... I bind you in Big High War God name.",
-						"You not worthy of Big High War God; you die too easy.",
-						"Big High War God make you strong... so you smash enemies.",
-						"War is best, peace is for weak. If you not worthy of Big High War God... you get made dead soon.",
-						"As ye vow to be at peace with each other... and to uphold high values of morality and friendship... I now pronounce you united in the law of Armadyl.",
-						"Thou didst fight true... but the foe was too great. May thy return be as swift as the flight of Armadyl.",
-						"For thy task is lawful... May the blessing of Armadyl be upon thee.",
-						"Peace shall bring thee wisdom; Wisdom shall bring thee peace. This is the law of Armadyl.",
-						"Ye faithful and loyal to the Great Lord... May ye together succeed in your deeds. Ye are now joined by the greatest power.",
-						"Thy faith faltered, no power could save thee. Like the Great Lord, one day you shall rise again.",
-						"By day or night, in defeat or victory... the power of the Great Lord be with thee.",
-						"Follower of the Great Lord be relieved: One day your loyalty will be rewarded. Power to the Great Lord!",
-						"Just say neigh to gambling!", "Eww stinky!", "I will burn with you.",
-						"Burn with me!", "Here fishy fishies!",
-						"For Camelot!", "Raarrrrrgggggghhhhhhh", "Taste vengeance!", "Smashing!", "*yawn*"));
-		// Messages from tobMistakeTrackerSpam
-		spamMessages.addAll(Arrays.asList(
-				"I'm planking!", // Note: Only need to add "I'm planking!" once
-				"I'm drowning in Maiden's blood!",
-				"I'm stunned!",
-				"Bye!",
-				"I'm eating cabbages!",
-				"I can't count to four!",
-				"I'm PKing my team!",
-				"I was stuck in a web!",
-				"I'm healing Verzik!"));
-		// Messages from TOAMistakeTrackerSpam
-		spamMessages.addAll(Arrays.asList(
-				"Argh! It burns!",
-				"Come on and slam!",
-				"Ah! It burns!",
-				"Embrace Darkness!",
-				"I'm too slow!",
-				"I'm griefing!",
-				"?",
-				"This jug feels a little light...",
-				"I'm drowning in acid!",
-				"I'm on a blood cloud!",
-				"Nihil!",
-				"I'm surfing!",
-				"I'm exploding!",
-				"The swarms are going in!",
-				"I've been hatched!",
-				"I'm fuming!",
-				"The sky is falling!",
-				"I've been corrupted!",
-				"It's venomous!",
-				"Come on and slam!|And welcome to the jam!",
-				"I got rocked!",
-				"They see me rollin'...",
-				"It's raining!",
-				"Who put that there?",
-				"I'm going down!",
-				"I'm disco-ing!",
-				"I'm dancing!",
-				"I'm winded!",
-				"I'm getting bombed!",
-				"I'm in jail!",
-				"What even was that attack?",
-				"I'm tripping!"));
-
-		// Check if the message is in the set
-		return spamMessages.contains(message);
+		// Simply check against the pre-initialized static set
+		return SPAM_MESSAGES.contains(message);
 	}
 
 	public boolean publishMessage(String t, String message, String channel, String to) {
+		// Build message on client thread (need client data)
 		try {
-
-			Channel currentChannel;
-			if (t.equals("p")) {
-				Friend friend = client.getFriendContainer().findByName(to);
-				String key = String.valueOf(friend.getWorld());
-				String paddedKeyString = padKey(key, 16); // Ensure the key is 16 bytes long
-				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
-				ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
-				currentChannel = ablyRealtime.channels.get(channel, options);
-
-			} else {
-				String paddedKeyString = padKey("pub", 16); // Ensure the key is 16 bytes long
-				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
-				ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
-				currentChannel = ablyRealtime.channels.get(channel, options);
-			}
-			
 			if (client.getLocalPlayer() == null) {
 				return false;
 			}
@@ -348,17 +369,56 @@ public class AblyManager {
 				return false;
 			}
 
+			// Gather all client data needed for the message
 			String username = Text.removeTags(client.getLocalPlayer().getName());
-			JsonObject msg = io.ably.lib.util.JsonUtils.object()
-					.add("symbol", getAccountIcon())
-					.add("username", username)
-					.add("message", message).add("type", t).add("to", to).toJson();
+			String symbol = getAccountIcon();
 			
-			currentChannel.publish("event", msg);
+			// Determine channel options based on message type
+			ChannelOptions options;
+			if (t.equals("p")) {
+				Friend friend = client.getFriendContainer().findByName(to);
+				if (friend == null) {
+					return false;
+				}
+				String key = String.valueOf(friend.getWorld());
+				String paddedKeyString = padKey(key, 16);
+				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
+				options = ChannelOptions.withCipherKey(base64EncodedKey);
+			} else {
+				String paddedKeyString = padKey("pub", 16);
+				String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
+				options = ChannelOptions.withCipherKey(base64EncodedKey);
+			}
+
+			// Build the message JSON
+			JsonObject msg = io.ably.lib.util.JsonUtils.object()
+					.add("symbol", symbol)
+					.add("username", username)
+					.add("message", message)
+					.add("type", t)
+					.add("to", to)
+					.toJson();
+
+			// Push actual publishing to executor to avoid blocking client thread
+			publishExecutor.submit(() -> {
+				try {
+					if (ablyRealtime == null) {
+						log.debug("AblyRealtime is null, cannot publish message");
+						return;
+					}
+					
+					Channel currentChannel = ablyRealtime.channels.get(channel, options);
+					currentChannel.publish("event", msg);
+					log.debug("Published message to channel: {}", channel);
+				} catch (AblyException err) {
+					log.error("Ably publish error", err);
+					handleAblyError(err);
+				}
+			});
+			
 			return true;
-		} catch (AblyException err) {
-			log.error("Ably publish error", err);
-			handleAblyError(err);
+		} catch (Exception err) {
+			log.error("Error preparing message for publish", err);
 			return false;
 		}
 	}
@@ -614,30 +674,42 @@ public class AblyManager {
 		return keyBuilder.toString();
 	}
 
-	public Channel subscribeToCorrectChannel(String channelName, String key) {
+	public void subscribeToCorrectChannel(String channelName, String key) {
+		if (ablyRealtime == null) {
+			log.debug("AblyRealtime is null, cannot subscribe to channel: {}", channelName);
+			return;
+		}
 
+		// Prepare channel options on calling thread (fast)
 		try {
-			String paddedKeyString = padKey(key, 16); // Ensure the key is 16 bytes long
+			String paddedKeyString = padKey(key, 16);
 			String base64EncodedKey = Base64.getEncoder().encodeToString(paddedKeyString.getBytes());
 			ChannelOptions options = ChannelOptions.withCipherKey(base64EncodedKey);
-			Channel currentChannel = ablyRealtime.channels.get(channelName, options);
-			currentChannel.subscribe(this::handleMessage);
 			
-			// Mark channel as successfully subscribed
-			channelSubscriptionStatus.put(channelName, true);
-			
-			// Mark channel as active for cleanup tracking
-			markChannelActive(channelName);
-			
-			return currentChannel;
+			// Move actual subscription to background executor
+			publishExecutor.submit(() -> {
+				try {
+					Channel currentChannel = ablyRealtime.channels.get(channelName, options);
+					currentChannel.subscribe(this::handleMessage);
+					
+					// Mark channel as successfully subscribed
+					channelSubscriptionStatus.put(channelName, true);
+					
+					// Mark channel as active for cleanup tracking
+					markChannelActive(channelName);
+					
+					log.debug("Successfully subscribed to channel: {}", channelName);
+				} catch (AblyException err) {
+					log.error("Ably subscribe error for channel: {}", channelName, err);
+					// Mark channel subscription as failed
+					channelSubscriptionStatus.put(channelName, false);
+					handleAblyError(err);
+				}
+			});
 		} catch (AblyException err) {
-			log.error("Ably subscribe error", err);
-			// Mark channel subscription as failed
+			log.error("Error preparing channel options for: {}", channelName, err);
 			channelSubscriptionStatus.put(channelName, false);
-			handleAblyError(err);
 		}
-		return null;
-
 	}
 
 	private String getAccountIcon() {
