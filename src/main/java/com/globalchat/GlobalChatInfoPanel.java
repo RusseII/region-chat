@@ -36,7 +36,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import okhttp3.OkHttpClient;
@@ -622,13 +621,19 @@ public class GlobalChatInfoPanel extends PluginPanel {
             return;
         }
         
-        CompletableFuture.runAsync(() -> {
-            try {
-                Request request = new Request.Builder()
-                    .url("https://global-chat-frontend.vercel.app/api/user-counts")
-                    .build();
-                
-                try (Response response = httpClient.newCall(request).execute()) {
+        Request request = new Request.Builder()
+            .url("https://global-chat-frontend.vercel.app/api/user-counts")
+            .build();
+        
+        httpClient.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override
+            public void onFailure(okhttp3.Call call, java.io.IOException e) {
+                log.debug("Failed to fetch user counts: {}", e.getMessage());
+            }
+
+            @Override
+            public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
+                try {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         UserCountResponse userCountResponse = gson.fromJson(responseBody, UserCountResponse.class);
@@ -694,9 +699,9 @@ public class GlobalChatInfoPanel extends PluginPanel {
                     } else {
                         log.debug("Failed to fetch user counts: HTTP {}", response.code());
                     }
+                } finally {
+                    response.close();
                 }
-            } catch (Exception e) {
-                log.debug("Failed to fetch user counts: {}", e.getMessage());
             }
         });
     }
@@ -707,13 +712,19 @@ public class GlobalChatInfoPanel extends PluginPanel {
             return;
         }
         
-        CompletableFuture.runAsync(() -> {
-            try {
-                Request request = new Request.Builder()
-                        .url("https://global-chat-frontend.vercel.app/api/stats/connections")
-                        .build();
+        Request request = new Request.Builder()
+                .url("https://global-chat-frontend.vercel.app/api/stats/connections")
+                .build();
 
-                try (Response response = httpClient.newCall(request).execute()) {
+        httpClient.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override
+            public void onFailure(okhttp3.Call call, java.io.IOException e) {
+                log.error("Error fetching connection stats", e);
+            }
+
+            @Override
+            public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
+                try {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         parseConnectionStatsResponse(responseBody);
@@ -721,9 +732,9 @@ public class GlobalChatInfoPanel extends PluginPanel {
                     } else {
                         log.warn("Failed to fetch connection stats: HTTP {}", response.code());
                     }
+                } finally {
+                    response.close();
                 }
-            } catch (Exception e) {
-                log.error("Error fetching connection stats", e);
             }
         });
     }

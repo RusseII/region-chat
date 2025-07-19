@@ -139,6 +139,11 @@ public class AblyManager {
 	}
 
 	public void closeSpecificChannel(String channelName) {
+		if (ablyRealtime == null) {
+			log.debug("AblyRealtime is null, cannot close channel: {}", channelName);
+			return;
+		}
+		
 		try {
 			ablyRealtime.channels.get(channelName).detach();
 			channelLastActivity.remove(channelName);
@@ -568,14 +573,27 @@ public class AblyManager {
 			// Add connection state monitoring
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.disconnected, state -> {
 				log.warn("Connection disconnected: " + state.reason);
+				// Clear channel subscription status since we're disconnected
+				channelSubscriptionStatus.clear();
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.failed, state -> {
 				log.error("Connection failed: " + state.reason);
+				// Clear channel subscription status on failure
+				channelSubscriptionStatus.clear();
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.connected, state -> {
 				log.debug("Connection established successfully");
+			});
+			
+			// Handle connection state changes that indicate we need to resubscribe
+			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.connecting, state -> {
+				log.debug("Connection is reconnecting...");
+			});
+			
+			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.suspended, state -> {
+				log.warn("Connection suspended: " + state.reason);
 			});
 			
 		} catch (AblyException e) {

@@ -398,7 +398,9 @@ public class GlobalChatPlugin extends Plugin {
 			String channelPrefix = isGuest ? "c:" + theGuesttheClanName
 					: "c:" +
 							theClanName;
-			ablyManager.closeSpecificChannel(channelPrefix);
+			if (ablyManager != null) {
+				ablyManager.closeSpecificChannel(channelPrefix);
+			}
 
 			if (isGuest) {
 				theGuesttheClanName = null;
