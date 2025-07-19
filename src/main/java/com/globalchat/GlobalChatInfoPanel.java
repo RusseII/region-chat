@@ -87,6 +87,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private long lastConnectionStatsUpdate = 0;
     private static final long CONNECTION_STATS_CACHE_TIME = 30000; // 30 seconds
     private ConnectionStatsResponse cachedConnectionStats;
+    private boolean connectionStatsInitialized = false;
+    private volatile boolean fetchingConnectionStats = false;
 
     public GlobalChatInfoPanel() {
         super(true); // Use built-in RuneLite scrolling
@@ -679,29 +681,47 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private void updateConnectionLimits() {
         // Skip if we don't have the required dependencies
         if (httpClient == null || gson == null || connectionLimitsLabel == null) {
+            if (!connectionStatsInitialized) {
+                setConnectionDisplayText("Loading connection info...", ColorScheme.LIGHT_GRAY_COLOR);
+                connectionStatsInitialized = true;
+            }
             return;
         }
         
-        // Always show cached data first if available (prevents showing 0 during world hops)
+        long now = System.currentTimeMillis();
+        boolean cacheIsValid = cachedConnectionStats != null && 
+                               (now - lastConnectionStatsUpdate) < CONNECTION_STATS_CACHE_TIME;
+        
+        // Always show cached data if we have it (prevents flickering)
         if (cachedConnectionStats != null) {
             updateConnectionDisplay(cachedConnectionStats);
+            if (!connectionStatsInitialized) {
+                connectionStatsInitialized = true;
+            }
         }
         
-        long now = System.currentTimeMillis();
-        
-        // Only fetch fresh data if cache is old (more than 30 seconds)
-        if (cachedConnectionStats == null || (now - lastConnectionStatsUpdate) >= CONNECTION_STATS_CACHE_TIME) {
-            log.debug("Fetching fresh connection stats - Cache age: {}ms", 
-                cachedConnectionStats != null ? (now - lastConnectionStatsUpdate) : 0);
-            
-            // Fetch fresh data in background
+        // Only fetch fresh data if needed and not already fetching
+        if (!cacheIsValid && !fetchingConnectionStats) {
+            log.debug("Need fresh connection stats - starting fetch");
             fetchFreshConnectionStats();
-        } else {
-            log.debug("Using cached connection stats - Cache age: {}ms", (now - lastConnectionStatsUpdate));
+        }
+        
+        // If we have no data and aren't fetching, show loading
+        if (cachedConnectionStats == null && !fetchingConnectionStats && !connectionStatsInitialized) {
+            setConnectionDisplayText("Loading connection info...", ColorScheme.LIGHT_GRAY_COLOR);
+            connectionStatsInitialized = true;
+            fetchFreshConnectionStats();
         }
     }
     
     private void fetchFreshConnectionStats() {
+        if (fetchingConnectionStats) {
+            log.debug("Already fetching connection stats, skipping");
+            return;
+        }
+        
+        fetchingConnectionStats = true;
+        
         // Use a background thread to fetch fresh connection info
         new Thread(() -> {
             try {
@@ -712,30 +732,51 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
-                        log.debug("Connection stats API response: {}", responseBody);
+                        log.debug("Fresh connection stats API response: {}", responseBody);
                         ConnectionStatsResponse stats = gson.fromJson(responseBody, ConnectionStatsResponse.class);
                         
-                        if (stats != null) {
-                            log.debug("Fresh connection stats - Connections: {}/{}", 
+                        if (stats != null && stats.maxConnections > 0 && stats.currentConnections >= 0) {
+                            log.debug("Successfully parsed connection stats - Connections: {}/{}", 
                                 stats.currentConnections, stats.maxConnections);
                             
-                            // Cache the successful response
+                            // Only cache valid data (prevent 0/200 from being cached)
                             cachedConnectionStats = stats;
                             lastConnectionStatsUpdate = System.currentTimeMillis();
+                            connectionStatsInitialized = true;
                             
                             // Update display with fresh data
                             updateConnectionDisplay(stats);
+                        } else {
+                            log.warn("Invalid connection stats response - max: {}, current: {}, raw: {}", 
+                                stats != null ? stats.maxConnections : "null",
+                                stats != null ? stats.currentConnections : "null",
+                                responseBody);
                         }
                     } else {
-                        log.debug("Failed to fetch fresh connection stats: HTTP {}", response.code());
-                        // Don't update display on error - keep showing cached data
+                        log.warn("Failed to fetch connection stats: HTTP {}", response.code());
+                        if (cachedConnectionStats == null) {
+                            setConnectionDisplayText("Failed to load connection data", Color.ORANGE);
+                        }
                     }
                 }
             } catch (Exception e) {
-                log.debug("Error fetching fresh connection stats: {}", e.getMessage());
-                // Don't update display on error - keep showing cached data
+                log.error("Error fetching connection stats", e);
+                if (cachedConnectionStats == null) {
+                    setConnectionDisplayText("Error loading connection data", Color.RED);
+                }
+            } finally {
+                fetchingConnectionStats = false;
             }
         }).start();
+    }
+    
+    private void setConnectionDisplayText(String text, Color color) {
+        SwingUtilities.invokeLater(() -> {
+            if (connectionLimitsLabel != null) {
+                connectionLimitsLabel.setText("<html>" + text + "</html>");
+                connectionLimitsLabel.setForeground(color);
+            }
+        });
     }
     
     private void updateConnectionDisplay(ConnectionStatsResponse stats) {
