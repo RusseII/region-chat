@@ -809,6 +809,11 @@ public class GlobalChatPlugin extends Plugin {
 
 	private void removeGlobalChatIconFromRecentMessage(String message) {
 		try {
+			// Don't show error messages if read-only mode is enabled
+			if (config.readOnlyMode()) {
+				return;
+			}
+			
 			// Rate limiting: only show error message every 30 minutes to prevent spam
 			long now = System.currentTimeMillis();
 			if (now - lastFailedSendMessageTime < FAILED_SEND_MESSAGE_COOLDOWN) {
