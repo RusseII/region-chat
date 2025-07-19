@@ -693,24 +693,37 @@ public class GlobalChatInfoPanel extends PluginPanel {
                         
                         if (stats != null) {
                             SwingUtilities.invokeLater(() -> {
-                                // Show both channels and connections, emphasizing channels since they limit first
-                                String statusText = String.format(
-                                    "<html><b>Channels:</b> %d / %d (%.1f%%)<br>" +
-                                    "<b>Connections:</b> %d / %d (%.1f%%)</html>",
-                                    stats.currentChannels,
-                                    stats.maxChannels,
-                                    (stats.currentChannels * 100.0 / stats.maxChannels),
-                                    stats.currentConnections,
-                                    stats.maxConnections,
-                                    (stats.currentConnections * 100.0 / stats.maxConnections)
-                                );
+                                String statusText;
+                                double connectionUtilization = stats.currentConnections * 100.0 / stats.maxConnections;
+                                
+                                // Check if we have channel data (new API) or just connection data (old API)
+                                if (stats.maxChannels > 0) {
+                                    // Show both connections and channels, emphasizing connections since they're the main bottleneck
+                                    statusText = String.format(
+                                        "<html><b>Connections:</b> %d / %d (%.1f%%)<br>" +
+                                        "<b>Channels:</b> %d / %d (%.1f%%)</html>",
+                                        stats.currentConnections,
+                                        stats.maxConnections,
+                                        connectionUtilization,
+                                        stats.currentChannels,
+                                        stats.maxChannels,
+                                        (stats.currentChannels * 100.0 / stats.maxChannels)
+                                    );
+                                } else {
+                                    // Fallback: show just connections if channel data isn't available
+                                    statusText = String.format(
+                                        "<html><b>Connections:</b> %d / %d (%.1f%%)</html>",
+                                        stats.currentConnections,
+                                        stats.maxConnections,
+                                        connectionUtilization
+                                    );
+                                }
                                 
                                 connectionLimitsLabel.setText(statusText);
                                 
-                                // Color code based on the higher utilization (most critical)
-                                double channelUtilization = stats.currentChannels * 100.0 / stats.maxChannels;
-                                double connectionUtilization = stats.currentConnections * 100.0 / stats.maxConnections;
-                                double maxUtilization = Math.max(channelUtilization, connectionUtilization);
+                                // Color code based on connection utilization (the main bottleneck)
+                                double channelUtilization = stats.maxChannels > 0 ? stats.currentChannels * 100.0 / stats.maxChannels : 0;
+                                double maxUtilization = Math.max(connectionUtilization, channelUtilization);
                                 
                                 if (maxUtilization >= 100) {
                                     connectionLimitsLabel.setForeground(Color.RED); // Over limit!
