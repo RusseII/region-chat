@@ -110,6 +110,9 @@ public class GlobalChatPlugin extends Plugin {
 
 	private long lastFailedSendMessageTime = 0;
 	private static final long FAILED_SEND_MESSAGE_COOLDOWN = 1800000; // 30 minutes
+	
+	private long lastReconnectAttempt = 0;
+	private int reconnectAttempts = 0;
 
 	@Getter
 	private final HashMap<String, ArrayList<String>> previousMessages = new HashMap<>();
@@ -151,16 +154,31 @@ public class GlobalChatPlugin extends Plugin {
 			pendingCommands.entrySet().removeIf(entry -> now - entry.getValue() > 5000); // 5 second cleanup
 		}, 10, 10, TimeUnit.SECONDS);
 
-		// Auto-reconnect mechanism - try to reconnect every 30 seconds if disconnected
+		// Auto-reconnect mechanism - try to reconnect every 10 seconds if disconnected
 		scheduler.scheduleAtFixedRate(() -> {
 			try {
 				if (client.getGameState() == GameState.LOGGED_IN && 
 					client.getLocalPlayer() != null && 
 					!ablyManager.isConnected()) {
 					
+					long now = System.currentTimeMillis();
+					
+					// Implement exponential backoff to prevent spam
+					long backoffTime = Math.min(60000, 10000 * (long)Math.pow(2, Math.min(reconnectAttempts / 3, 4)));
+					if (now - lastReconnectAttempt < backoffTime) {
+						return; // Skip this attempt due to backoff
+					}
+					
 					String playerName = client.getLocalPlayer().getName();
 					if (playerName != null && !playerName.isEmpty()) {
-						log.debug("Auto-reconnect attempt for player: " + playerName);
+						lastReconnectAttempt = now;
+						reconnectAttempts++;
+						
+						// Only log every 3rd attempt to reduce spam
+						if (reconnectAttempts % 3 == 1) {
+							log.debug("Auto-reconnect attempt #{} for player: {}", reconnectAttempts, playerName);
+						}
+						
 						ablyManager.startConnection(playerName);
 						
 						// Re-subscribe to channels if we have the necessary info
@@ -175,11 +193,14 @@ public class GlobalChatPlugin extends Plugin {
 							ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
 						}
 					}
+				} else if (ablyManager.isConnected()) {
+					// Reset reconnect attempts on successful connection
+					reconnectAttempts = 0;
 				}
 			} catch (Exception e) {
 				log.debug("Error during auto-reconnect attempt", e);
 			}
-		}, 30, 30, TimeUnit.SECONDS);
+		}, 10, 10, TimeUnit.SECONDS);
 
 		// ablyManager.startConnection();
 		onLoggedInGameState(); // Call this to handle turning plugin on when already logged in, should do

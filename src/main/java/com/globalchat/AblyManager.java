@@ -98,8 +98,8 @@ public class AblyManager {
 	private final Map<String, Long> channelLastActivity = new HashMap<>();
 	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
-	private long lastErrorMessageTime = 0;
-	private static final long ERROR_MESSAGE_COOLDOWN = 300000; // 5 minutes
+	private final Map<Integer, Long> lastErrorMessageTimePerWorld = new HashMap<>();
+	private static final long ERROR_MESSAGE_COOLDOWN = 1800000; // 30 minutes
 
 	@Inject
 	public AblyManager(Client client, GlobalChatConfig config, @Named("developerMode") boolean developerMode, SupporterManager supporterManager) {
@@ -716,16 +716,20 @@ public class AblyManager {
 	}
 	
 	private void showInGameErrorMessage(String message) {
-		// Rate limiting: only show error messages every 5 minutes to prevent spam
+		// Rate limiting: only show error messages every 30 minutes per world to prevent spam
 		long now = System.currentTimeMillis();
-		if (now - lastErrorMessageTime < ERROR_MESSAGE_COOLDOWN) {
-			log.debug("Error message rate limited, skipping");
+		int currentWorld = client.getWorld();
+		
+		// Check if we've shown an error for this world recently
+		Long lastErrorTime = lastErrorMessageTimePerWorld.get(currentWorld);
+		if (lastErrorTime != null && now - lastErrorTime < ERROR_MESSAGE_COOLDOWN) {
+			log.debug("Error message rate limited for world {}, skipping", currentWorld);
 			return;
 		}
 		
 		if (client.getGameState() == GameState.LOGGED_IN) {
-			lastErrorMessageTime = now;
-			log.debug("Sending error message to chat");
+			lastErrorMessageTimePerWorld.put(currentWorld, now);
+			log.debug("Sending error message to chat for world {}", currentWorld);
 			
 			chatMessageManager.queue(QueuedMessage.builder()
 				.type(ChatMessageType.GAMEMESSAGE)
