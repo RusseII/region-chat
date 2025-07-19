@@ -693,20 +693,26 @@ public class GlobalChatPlugin extends Plugin {
 		});
 
 		// Make async request to check status
-		scheduler.execute(() -> {
-			try {
-				// Build the API URL
-				String apiUrl = "https://global-chat-frontend.vercel.app/api/check-player-status?playerName="
-						+ cleanName;
+		String apiUrl = "https://global-chat-frontend.vercel.app/api/check-player-status?playerName=" + cleanName;
+		Request request = new Request.Builder()
+				.url(apiUrl)
+				.get()
+				.build();
 
-				// Create HTTP request
-				Request request = new Request.Builder()
-						.url(apiUrl)
-						.get()
-						.build();
+		okHttpClient.newCall(request).enqueue(new okhttp3.Callback() {
+			@Override
+			public void onFailure(okhttp3.Call call, java.io.IOException e) {
+				log.error("Error checking player status for " + cleanName, e);
+				clientThread.invokeLater(() -> {
+					String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName + "</col>";
+					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", errorMessage, null);
+					return true;
+				});
+			}
 
-				// Execute the request
-				try (Response response = okHttpClient.newCall(request).execute()) {
+			@Override
+			public void onResponse(okhttp3.Call call, okhttp3.Response response) throws java.io.IOException {
+				try {
 					if (response.isSuccessful() && response.body() != null) {
 						String responseBody = response.body().string();
 						JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
@@ -731,15 +737,16 @@ public class GlobalChatPlugin extends Plugin {
 							return true;
 						});
 					}
+				} catch (Exception e) {
+					log.error("Error parsing response for " + cleanName, e);
+					clientThread.invokeLater(() -> {
+						String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName + "</col>";
+						client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", errorMessage, null);
+						return true;
+					});
+				} finally {
+					response.close();
 				}
-
-			} catch (Exception e) {
-				log.error("Error checking player status for " + cleanName, e);
-				clientThread.invokeLater(() -> {
-					String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName + "</col>";
-					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", errorMessage, null);
-					return true;
-				});
 			}
 		});
 	}
