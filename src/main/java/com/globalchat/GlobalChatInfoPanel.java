@@ -59,7 +59,6 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.api.Client;
-import net.runelite.api.GameState;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -84,9 +83,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private JLabel connectionLimitsLabel;
     private Timer userCountUpdateTimer;
     private Timer connectionStatusTimer;
-    private long lastConnectionStatsUpdate = 0;
-    private static final long CONNECTION_STATS_CACHE_TIME = 30000; // 30 seconds
-    private ConnectionStatsResponse cachedConnectionStats = null;
+    private ConnectionStatsResponse connectionStats = null;
+    private boolean hasReceivedValidData = false;
 
     public GlobalChatInfoPanel() {
         super(true); // Use built-in RuneLite scrolling
@@ -534,11 +532,39 @@ public class GlobalChatInfoPanel extends PluginPanel {
 
         // Connection limits (dynamic) - start with loading message
         connectionLimitsLabel = new JLabel("<html>Loading connection info...</html>");
-        connectionLimitsLabel.setFont(FontManager.getRunescapeFont().deriveFont(11f));
+        connectionLimitsLabel.setFont(FontManager.getRunescapeFont().deriveFont(Font.BOLD, 12f));
         connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         gbc.insets = new Insets(0, 0, 10, 0);
         panel.add(connectionLimitsLabel, gbc);
         gbc.gridy++;
+
+        // Fetch connection stats with retries to ensure we get data quickly
+        if (httpClient != null && gson != null) {
+            // Initial fetch after 100ms
+            SwingUtilities.invokeLater(() -> {
+                Timer initialFetchTimer = new Timer(100, e -> fetchConnectionStats());
+                initialFetchTimer.setRepeats(false);
+                initialFetchTimer.start();
+                
+                // Retry after 2 seconds if still no data
+                Timer retryTimer = new Timer(2000, e -> {
+                    if (connectionStats == null) {
+                        fetchConnectionStats();
+                    }
+                });
+                retryTimer.setRepeats(false);
+                retryTimer.start();
+                
+                // Final retry after 5 seconds if still no data
+                Timer finalRetryTimer = new Timer(5000, e -> {
+                    if (connectionStats == null) {
+                        fetchConnectionStats();
+                    }
+                });
+                finalRetryTimer.setRepeats(false);
+                finalRetryTimer.start();
+            });
+        }
 
         // Title
         JLabel titleLabel = new JLabel("Online Users");
@@ -581,12 +607,11 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private void startUserCountUpdates() {
         // Initial update
         updateUserCounts();
-        updateConnectionLimits();
         
         // Update every 30 seconds
         userCountUpdateTimer = new Timer(30000, e -> {
             updateUserCounts();
-            updateConnectionLimits();
+            fetchConnectionStats();
         });
         userCountUpdateTimer.start();
     }
@@ -676,30 +701,12 @@ public class GlobalChatInfoPanel extends PluginPanel {
         });
     }
 
-    private void updateConnectionLimits() {
+    private void fetchConnectionStats() {
         // Skip if we don't have the required dependencies
-        if (httpClient == null || gson == null || connectionLimitsLabel == null) {
+        if (httpClient == null || gson == null) {
             return;
         }
         
-        // ALWAYS show cached data first if we have it
-        if (cachedConnectionStats != null) {
-            updateConnectionDisplay(cachedConnectionStats);
-        }
-        
-        long now = System.currentTimeMillis();
-        
-        // Only fetch fresh data if cache is actually expired AND we haven't fetched recently
-        if (cachedConnectionStats == null || (now - lastConnectionStatsUpdate) >= CONNECTION_STATS_CACHE_TIME) {
-            log.debug("Cache expired, fetching fresh connection stats");
-            fetchConnectionStats();
-        } else {
-            log.debug("Using cached connection stats, {} seconds remaining", 
-                (CONNECTION_STATS_CACHE_TIME - (now - lastConnectionStatsUpdate)) / 1000);
-        }
-    }
-    
-    private void fetchConnectionStats() {
         CompletableFuture.runAsync(() -> {
             try {
                 Request request = new Request.Builder()
@@ -725,39 +732,49 @@ public class GlobalChatInfoPanel extends PluginPanel {
         try {
             ConnectionStatsResponse response = gson.fromJson(json, ConnectionStatsResponse.class);
             
-            // Only update if we get valid data (prevent overwriting good cache with bad data)
-            if (response != null && response.maxConnections > 0 && response.currentConnections >= 0) {
-                log.debug("Parsed valid connection stats: {}/{}", response.currentConnections, response.maxConnections);
-                cachedConnectionStats = response;
-                lastConnectionStatsUpdate = System.currentTimeMillis();
-                updateConnectionDisplay(response);
-            } else {
-                log.warn("Received invalid connection stats, keeping cached data. Response: {}", json);
+            if (response != null && response.maxConnections > 0) {
+                // Don't update to 0 if we already have valid non-zero data
+                if (this.connectionStats != null && 
+                    this.connectionStats.currentConnections > 0 && 
+                    response.currentConnections == 0) {
+                    log.debug("Ignoring suspicious 0 connection count when we have existing data showing {}", 
+                        this.connectionStats.currentConnections);
+                    return;
+                }
+                
+                // On initial load, don't display 0 connections - wait for real data
+                if (!hasReceivedValidData && response.currentConnections == 0) {
+                    log.debug("Ignoring initial 0 connection count, waiting for real data");
+                    return;
+                }
+                
+                // Mark that we've received valid data if connections > 0
+                if (response.currentConnections > 0) {
+                    hasReceivedValidData = true;
+                }
+                
+                this.connectionStats = response;
+                updateConnectionDisplay();
+                log.debug("Updated connection stats: {}/{}", response.currentConnections, response.maxConnections);
             }
         } catch (Exception e) {
-            log.error("Error parsing connection stats response: {}", json, e);
+            log.error("Error parsing connection stats response", e);
         }
     }
     
-    private void setConnectionDisplayText(String text, Color color) {
+    private void updateConnectionDisplay() {
         SwingUtilities.invokeLater(() -> {
-            if (connectionLimitsLabel != null) {
-                connectionLimitsLabel.setText("<html>" + text + "</html>");
-                connectionLimitsLabel.setForeground(color);
-            }
-        });
-    }
-    
-    private void updateConnectionDisplay(ConnectionStatsResponse stats) {
-        SwingUtilities.invokeLater(() -> {
-            // Safety check - never display invalid data
-            if (stats == null || stats.maxConnections <= 0) {
-                log.warn("Attempted to display invalid connection stats: {}", stats);
-                setConnectionDisplayText("Loading connection info...", ColorScheme.LIGHT_GRAY_COLOR);
+            if (connectionLimitsLabel == null) {
                 return;
             }
             
-            double connectionUtilization = stats.currentConnections * 100.0 / stats.maxConnections;
+            if (connectionStats == null) {
+                connectionLimitsLabel.setText("<html>Loading connection info...</html>");
+                connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+                return;
+            }
+            
+            double connectionUtilization = connectionStats.currentConnections * 100.0 / connectionStats.maxConnections;
             
             String statusText;
             if (connectionUtilization >= 100) {
@@ -766,16 +783,16 @@ public class GlobalChatInfoPanel extends PluginPanel {
                     "<html><b>Connections:</b> %d / %d (%.1f%%)<br>" +
                     "<b style='color: #ff6b6b;'>Plugin won't work correctly!</b><br>" +
                     "<b style='color: #00ff00;'>Subscribe to Patreon to increase limits</b></html>",
-                    stats.currentConnections,
-                    stats.maxConnections,
+                    connectionStats.currentConnections,
+                    connectionStats.maxConnections,
                     connectionUtilization
                 );
             } else {
                 // Normal display
                 statusText = String.format(
                     "<html><b>Connections:</b> %d / %d (%.1f%%)</html>",
-                    stats.currentConnections,
-                    stats.maxConnections,
+                    connectionStats.currentConnections,
+                    connectionStats.maxConnections,
                     connectionUtilization
                 );
             }
