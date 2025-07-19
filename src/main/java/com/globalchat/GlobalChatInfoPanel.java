@@ -218,9 +218,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         // Current status
         JLabel currentStatus = new JLabel("<html>" +
                 "<b>Service Limits:</b><br>" +
-                "- <b>Connection limit:</b> 200 concurrent users<br>" +
-                "- <b>Message limit:</b> 6 million per month<br>" +
-                "- <b>Channel limit:</b> 200 active channels" +
+                "- <b>Connection limit:</b> 200 concurrent users" +
                 "</html>");
         currentStatus.setFont(FontManager.getRunescapeFont().deriveFont(11f));
         currentStatus.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
@@ -232,7 +230,6 @@ public class GlobalChatInfoPanel extends PluginPanel {
         JLabel benefitsText = new JLabel("<html>" +
                 "<b style='color: #4CAF50;'>Your support will:</b><br>" +
                 "- Increase connection limits (more players can chat)<br>" +
-                "- Increase message limits (no more outages)<br>" +
                 "- Keep the service running 24/7<br>" +
                 "- Enable new features and improvements" +
                 "</html>");
@@ -798,11 +795,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
             
             String statusText;
             if (connectionUtilization >= 100) {
-                // Over capacity - show warning
+                // Over capacity - show warning with player impact
                 statusText = String.format(
                     "<html><b>Connections:</b> %d / %d (%.1f%%)<br>" +
-                    "<b style='color: #ff6b6b;'>Plugin won't work correctly!</b><br>" +
-                    "<b style='color: #00ff00;'>Subscribe to Patreon to increase limits</b></html>",
+                    "<b style='color: #ff9040;'>Some players can't connect to Global Chat! Support on Patreon to increase connection limits.</b></html>",
                     connectionStats.currentConnections,
                     connectionStats.maxConnections,
                     connectionUtilization
