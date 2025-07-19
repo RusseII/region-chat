@@ -247,7 +247,8 @@ public class GlobalChatPlugin extends Plugin {
 
 	@Override
 	protected void shutDown() throws Exception {
-		ablyManager.closeConnection();
+		// Shutdown AblyManager properly
+		ablyManager.shutdown();
 		shouldConnect = true;
 
 		// Clean up scheduler
