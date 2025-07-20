@@ -177,6 +177,7 @@ public class AblyManager {
 	private AblyRealtime ablyRealtime;
 	private volatile boolean isConnecting = false;
 	private ExecutorService publishExecutor;
+	private volatile boolean shuttingDown = false;
 	private final Map<String, Boolean> channelSubscriptionStatus = new HashMap<>();
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
 	private final Map<Integer, Long> lastErrorMessageTimePerWorld = new HashMap<>();
@@ -207,6 +208,9 @@ public class AblyManager {
 	}
 
 	public void startConnection(String playerName) {
+		// Reset shutdown flag when starting a new connection
+		shuttingDown = false;
+		
 		// Prevent multiple concurrent connections with atomic check-and-set
 		synchronized (this) {
 			if (isConnecting) {
@@ -308,17 +312,27 @@ public class AblyManager {
 		ablyRealtime = null;
 		
 		if (connectionToClose != null) {
-			// Move the actual closing to background to avoid blocking
-			ensureExecutorAvailable();
-			publishExecutor.submit(() -> {
+			// Check if we're already shutting down to avoid submitting new tasks
+			if (publishExecutor != null && !publishExecutor.isShutdown()) {
+				ensureExecutorAvailable();
+				publishExecutor.submit(() -> {
+					try {
+						log.debug("Closing Ably connection in background");
+						connectionToClose.close();
+						log.debug("Connection properly closed");
+					} catch (Exception e) {
+						log.error("Error closing connection", e);
+					}
+				});
+			} else {
+				// If executor is shutting down, close synchronously
 				try {
-					log.debug("Closing Ably connection in background");
+					log.debug("Closing Ably connection synchronously during shutdown");
 					connectionToClose.close();
-					log.debug("Connection properly closed");
 				} catch (Exception e) {
-					log.error("Error closing connection", e);
+					log.error("Error closing connection during shutdown", e);
 				}
-			});
+			}
 		}
 		
 		// Note: Don't shutdown executor here since we just submitted a task to it
@@ -326,20 +340,23 @@ public class AblyManager {
 	}
 	
 	public void shutdown() {
+		log.debug("Shutting down AblyManager");
+		// Set shutdown flag to prevent new tasks
+		shuttingDown = true;
+		
 		// First close any active connection
 		closeConnection();
 		
-		// Then shutdown the executor after a brief delay to allow pending tasks to complete
+		// Then shutdown the executor gracefully WITHOUT interrupting threads
 		if (publishExecutor != null && !publishExecutor.isShutdown()) {
 			try {
 				publishExecutor.shutdown();
-				if (!publishExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
-					publishExecutor.shutdownNow();
-					log.debug("Force shutdown publish executor");
+				// Wait indefinitely for tasks to complete (no interruption)
+				while (!publishExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
+					// Keep waiting
 				}
 			} catch (InterruptedException e) {
-				publishExecutor.shutdownNow();
-				Thread.currentThread().interrupt();
+				// Shutdown interrupted, just continue
 			}
 		}
 	}
