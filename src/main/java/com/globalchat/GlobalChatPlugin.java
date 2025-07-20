@@ -252,9 +252,17 @@ public class GlobalChatPlugin extends Plugin {
 		ablyManager.shutdown();
 		shouldConnect = true;
 
-		// Clean up scheduler
+		// Clean up scheduler gracefully WITHOUT interrupting threads
 		if (scheduler != null) {
-			scheduler.shutdown();
+			try {
+				scheduler.shutdown();
+				// Wait indefinitely for tasks to complete (no interruption)
+				while (!scheduler.awaitTermination(60, TimeUnit.SECONDS)) {
+					// Keep waiting
+				}
+			} catch (InterruptedException e) {
+				// Shutdown interrupted, just continue
+			}
 		}
 
 		// Clean up supporter manager
