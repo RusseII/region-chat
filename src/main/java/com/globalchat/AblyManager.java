@@ -347,17 +347,9 @@ public class AblyManager {
 		// First close any active connection
 		closeConnection();
 		
-		// Then shutdown the executor gracefully WITHOUT interrupting threads
+		// Then shutdown the executor - just shutdown without blocking
 		if (publishExecutor != null && !publishExecutor.isShutdown()) {
-			try {
-				publishExecutor.shutdown();
-				// Wait indefinitely for tasks to complete (no interruption)
-				while (!publishExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
-					// Keep waiting
-				}
-			} catch (InterruptedException e) {
-				// Shutdown interrupted, just continue
-			}
+			publishExecutor.shutdown();
 		}
 	}
 
