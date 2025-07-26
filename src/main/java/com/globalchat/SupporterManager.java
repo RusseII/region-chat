@@ -44,15 +44,7 @@ public class SupporterManager {
     }
 
     public void shutdown() {
-        try {
-            scheduler.shutdown();
-            // Wait indefinitely for tasks to complete (no interruption)
-            while (!scheduler.awaitTermination(60, TimeUnit.SECONDS)) {
-                // Keep waiting
-            }
-        } catch (InterruptedException e) {
-            // Shutdown interrupted, just continue
-        }
+        scheduler.shutdown();
     }
 
     public List<Supporter> getSupporters() {
