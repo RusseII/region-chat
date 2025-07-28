@@ -36,6 +36,7 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -144,9 +145,9 @@ public class GlobalChatPlugin extends Plugin {
 
 	private ScheduledExecutorService scheduler;
 
-	// Tracking for chat command transformations
-	private final Map<String, Long> pendingCommands = new HashMap<>();
-	private final Map<String, String> commandTransformations = new HashMap<>();
+	// Tracking for chat command transformations - using ConcurrentHashMap for thread safety
+	private final Map<String, Long> pendingCommands = new ConcurrentHashMap<>();
+	private final Map<String, String> commandTransformations = new ConcurrentHashMap<>();
 
 	@Override
 	protected void startUp() throws Exception {
@@ -155,8 +156,12 @@ public class GlobalChatPlugin extends Plugin {
 
 		// Clear old pending commands periodically
 		scheduler.scheduleAtFixedRate(() -> {
-			long now = System.currentTimeMillis();
-			pendingCommands.entrySet().removeIf(entry -> now - entry.getValue() > 5000); // 5 second cleanup
+			try {
+				long now = System.currentTimeMillis();
+				pendingCommands.entrySet().removeIf(entry -> now - entry.getValue() > 5000); // 5 second cleanup
+			} catch (Exception e) {
+				log.error("Error during pending commands cleanup", e);
+			}
 		}, 10, 10, TimeUnit.SECONDS);
 
 		// Auto-reconnect mechanism - try to reconnect every 10 seconds if disconnected
@@ -469,13 +474,23 @@ public class GlobalChatPlugin extends Plugin {
 
 	private void checkForTransformationWithRetry(String originalMessage, String playerName, MessageNode messageNode,
 			int attempt) {
-		// Immediately check for transformation
+		// Immediately check for transformation on client thread
 		checkForTransformation(originalMessage, playerName, messageNode, attempt, (success) -> {
 			if (!success && attempt < 2) {
 				// Retry once after 150ms delay if first attempt failed
 				scheduler.schedule(() -> {
-					if (pendingCommands.containsKey(originalMessage)) {
-						checkForTransformationWithRetry(originalMessage, playerName, messageNode, attempt + 1);
+					try {
+						if (pendingCommands.containsKey(originalMessage)) {
+							// Ensure retry also happens on client thread
+							clientThread.invokeLater(() -> {
+								checkForTransformationWithRetry(originalMessage, playerName, messageNode, attempt + 1);
+								return true;
+							});
+						}
+					} catch (Exception e) {
+						log.error("Error during transformation retry for: {}", originalMessage, e);
+						// Clean up on error
+						pendingCommands.remove(originalMessage);
 					}
 				}, 150, TimeUnit.MILLISECONDS);
 			}
@@ -492,49 +507,49 @@ public class GlobalChatPlugin extends Plugin {
 		try {
 			log.debug("Checking transformation attempt #{} for command: '{}'", attempt, originalMessage);
 
+			// Add null check for MessageNode
 			if (messageNode != null) {
-				// Access MessageNode from client thread to ensure thread safety
-				clientThread.invokeLater(() -> {
-					try {
-						String runeLiteMessage = messageNode.getRuneLiteFormatMessage();
-						String currentMessage = runeLiteMessage != null ? Text.removeTags(runeLiteMessage)
-								: originalMessage; // Fallback to original if no RuneLite message
+				try {
+					// Access MessageNode safely - we're already on client thread from event handler
+					String runeLiteMessage = messageNode.getRuneLiteFormatMessage();
+					String currentMessage = runeLiteMessage != null ? Text.removeTags(runeLiteMessage)
+							: originalMessage; // Fallback to original if no RuneLite message
 
-						boolean transformationFound = !originalMessage.equals(currentMessage);
-						if (transformationFound) {
-							log.debug("Command transformed: '{}' -> '{}'", originalMessage, currentMessage);
-							commandTransformations.put(originalMessage, currentMessage);
-							// Send the transformed message (without color formatting)
-							publishMessageToGlobalChat("w", currentMessage, playerName, "TRANSFORMATION_DETECTED");
-							pendingCommands.remove(originalMessage);
-							if (callback != null)
-								callback.accept(true);
-						} else if (attempt >= 2) {
-							// Final attempt - no transformation found, send original
-							publishMessageToGlobalChat("w", originalMessage, playerName, "COMMAND_NO_TRANSFORMATION");
-							pendingCommands.remove(originalMessage);
-							if (callback != null)
-								callback.accept(true);
-						} else {
-							// No transformation yet, signal failure for retry
-							if (callback != null)
-								callback.accept(false);
-						}
-					} catch (Exception e) {
-						log.error("Error accessing MessageNode for '{}': ", originalMessage, e);
-						if (attempt >= 2) {
-							publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_ACCESS_ERROR");
-							pendingCommands.remove(originalMessage);
-							if (callback != null)
-								callback.accept(true);
-						} else {
-							if (callback != null)
-								callback.accept(false);
-						}
+					boolean transformationFound = !originalMessage.equals(currentMessage);
+					if (transformationFound) {
+						log.debug("Command transformed: '{}' -> '{}'", originalMessage, currentMessage);
+						commandTransformations.put(originalMessage, currentMessage);
+						// Send the transformed message (without color formatting)
+						publishMessageToGlobalChat("w", currentMessage, playerName, "TRANSFORMATION_DETECTED");
+						pendingCommands.remove(originalMessage);
+						if (callback != null)
+							callback.accept(true);
+					} else if (attempt >= 2) {
+						// Final attempt - no transformation found, send original
+						publishMessageToGlobalChat("w", originalMessage, playerName, "COMMAND_NO_TRANSFORMATION");
+						pendingCommands.remove(originalMessage);
+						if (callback != null)
+							callback.accept(true);
+					} else {
+						// No transformation yet, signal failure for retry
+						if (callback != null)
+							callback.accept(false);
 					}
-					return true;
-				});
+				} catch (Exception e) {
+					log.error("Error accessing MessageNode for '{}': ", originalMessage, e);
+					if (attempt >= 2) {
+						publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_ACCESS_ERROR");
+						pendingCommands.remove(originalMessage);
+						if (callback != null)
+							callback.accept(true);
+					} else {
+						if (callback != null)
+							callback.accept(false);
+					}
+				}
 			} else {
+				// Handle null MessageNode case
+				log.warn("MessageNode is null for command: '{}'", originalMessage);
 				if (attempt >= 2) {
 					publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_NULL");
 					pendingCommands.remove(originalMessage);
@@ -566,29 +581,26 @@ public class GlobalChatPlugin extends Plugin {
 			return;
 		}
 
-		// Only use client thread to build the message with world data
-		clientThread.invokeLater(() -> {
-			try {
-				String channel = type + ":" + String.valueOf(client.getWorld());
-				ablyManager.shouldShowMessge(playerName, message, true);
+		// We're already on client thread from event handler - no need to invoke later
+		try {
+			String channel = type + ":" + String.valueOf(client.getWorld());
+			ablyManager.shouldShowMessge(playerName, message, true);
 
-				// Move actual publishing off client thread to background executor
-				ablyManager.publishMessageAsync(type, message, channel, "", (success) -> {
-					if (!success) {
-						// Handle failure on client thread since UI operations are needed
-						clientThread.invokeLater(() -> {
-							removeGlobalChatIconFromRecentMessage(message);
-							return true;
-						});
-					}
-				});
-			} catch (Exception e) {
-				log.error("Error preparing message for publish: '{}'", message, e);
-				// Remove global chat icon from the message since it failed to publish
-				removeGlobalChatIconFromRecentMessage(message);
-			}
-			return true;
-		});
+			// Move actual publishing off client thread to background executor
+			ablyManager.publishMessageAsync(type, message, channel, "", (success) -> {
+				if (!success) {
+					// Handle failure - schedule UI update since we might be on background thread
+					clientThread.invokeLater(() -> {
+						removeGlobalChatIconFromRecentMessage(message);
+						return true;
+					});
+				}
+			});
+		} catch (Exception e) {
+			log.error("Error preparing message for publish: '{}'", message, e);
+			// Remove global chat icon from the message since it failed to publish
+			removeGlobalChatIconFromRecentMessage(message);
+		}
 	}
 
 	private void handleAllGlobalMessages(ChatMessage event, String cleanedMessage, String cleanedName,
@@ -599,8 +611,25 @@ public class GlobalChatPlugin extends Plugin {
 				// Modify message to include icons if not in read-only mode and connected
 				if (!config.readOnlyMode() && ablyManager.isConnected()) {
 					try {
+						// Validate connection state and message node before manipulation
+						if (event.getMessageNode() == null) {
+							log.warn("MessageNode is null, skipping chat manipulation");
+							return;
+						}
+						
+						// Double-check connection state atomically
+						if (!ablyManager.isConnected()) {
+							log.debug("Connection lost during chat manipulation, skipping");
+							return;
+						}
+						
 						// Remove the original message
 						final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
+						if (lineBuffer == null) {
+							log.warn("ChatLineBuffer is null, skipping chat manipulation");
+							return;
+						}
+						
 						lineBuffer.removeMessageNode(event.getMessageNode());
 
 						// Get icons (match the format used for received messages)
@@ -632,7 +661,9 @@ public class GlobalChatPlugin extends Plugin {
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.PRIVATECHAT.getType());
-			lineBuffer.removeMessageNode(event.getMessageNode());
+			if (lineBuffer != null && event.getMessageNode() != null) {
+				lineBuffer.removeMessageNode(event.getMessageNode());
+			}
 			// } else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
 			// if (cleanedName != null && !cleanedName.isEmpty()) {
 			// if (!ablyManager.shouldPublishMessage(cleanedMessage,
@@ -648,17 +679,23 @@ public class GlobalChatPlugin extends Plugin {
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.FRIENDSCHAT.getType());
-			lineBuffer.removeMessageNode(event.getMessageNode());
+			if (lineBuffer != null && event.getMessageNode() != null) {
+				lineBuffer.removeMessageNode(event.getMessageNode());
+			}
 		} else if (event.getType().equals(ChatMessageType.CLAN_CHAT) && !isLocalPlayerSendingMessage
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.CLAN_CHAT.getType());
-			lineBuffer.removeMessageNode(event.getMessageNode());
+			if (lineBuffer != null && event.getMessageNode() != null) {
+				lineBuffer.removeMessageNode(event.getMessageNode());
+			}
 		} else if (event.getType().equals(ChatMessageType.CLAN_GUEST_CHAT) && !isLocalPlayerSendingMessage
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.CLAN_GUEST_CHAT.getType());
-			lineBuffer.removeMessageNode(event.getMessageNode());
+			if (lineBuffer != null && event.getMessageNode() != null) {
+				lineBuffer.removeMessageNode(event.getMessageNode());
+			}
 		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && isLocalPlayerSendingMessage) {
 			if (!ablyManager.shouldPublishMessage(cleanedMessage, cleanedName)) {
 				return;
