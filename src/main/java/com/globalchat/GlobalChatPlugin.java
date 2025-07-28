@@ -445,6 +445,9 @@ public class GlobalChatPlugin extends Plugin {
 		if (isPublic && isLocalPlayerSendingMessage) {
 			log.debug("Processing local public message from: '{}'", cleanedName);
 
+			// Temporarily disable command processing to prevent freezing
+			// TODO: Re-enable after fixing thread safety issues
+			/*
 			// Check if this is a command
 			if (cleanedMessage.matches("^![a-zA-Z]+.*")) {
 				log.debug("Chat command detected: '{}'", cleanedMessage);
@@ -460,8 +463,9 @@ public class GlobalChatPlugin extends Plugin {
 				checkForTransformationWithRetry(originalMessage, cleanedName, messageNode, 1);
 
 			} else {
+			*/
 				publishMessageToGlobalChat("w", cleanedMessage, cleanedName, "REGULAR_MESSAGE");
-			}
+			// }
 		}
 
 		handleAllGlobalMessages(event, cleanedMessage, cleanedName, isLocalPlayerSendingMessage);
@@ -598,29 +602,34 @@ public class GlobalChatPlugin extends Plugin {
 			if (!cleanedMessage.matches("^![a-zA-Z]+.*")) {
 				// Modify message to include icons if not in read-only mode and connected
 				if (!config.readOnlyMode() && ablyManager.isConnected()) {
-					// Remove the original message
-					final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
-					lineBuffer.removeMessageNode(event.getMessageNode());
+					try {
+						// Remove the original message
+						final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
+						lineBuffer.removeMessageNode(event.getMessageNode());
 
-					// Get icons (match the format used for received messages)
-					String accountIcon = getAccountIcon();
-					String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
-					String symbol = accountIcon; // Start with account icon
+						// Get icons (match the format used for received messages)
+						String accountIcon = getAccountIcon();
+						String supporterIcon = supporterManager.getSupporterIcon(cleanedName);
+						String symbol = accountIcon; // Start with account icon
 
-					// Add supporter icon if user is a supporter
-					if (!supporterIcon.isEmpty()) {
-						if (symbol.isEmpty()) {
-							symbol = supporterIcon;
-						} else {
-							symbol = supporterIcon + " " + symbol;
+						// Add supporter icon if user is a supporter
+						if (!supporterIcon.isEmpty()) {
+							if (symbol.isEmpty()) {
+								symbol = supporterIcon;
+							} else {
+								symbol = supporterIcon + " " + symbol;
+							}
 						}
+
+						// Add global chat icon
+						symbol = "<img=19> " + symbol;
+
+						// Re-add the message with icons
+						client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
+					} catch (Exception e) {
+						log.warn("Failed to add global chat icon to message: {}", e.getMessage());
+						// Message will display normally without icon, preventing game freeze
 					}
-
-					// Add global chat icon
-					symbol = "<img=19> " + symbol;
-
-					// Re-add the message with icons
-					client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
 				}
 			}
 		} else if (event.getType().equals(ChatMessageType.PRIVATECHAT)
@@ -628,17 +637,17 @@ public class GlobalChatPlugin extends Plugin {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
 					.get(ChatMessageType.PRIVATECHAT.getType());
 			lineBuffer.removeMessageNode(event.getMessageNode());
-			// } else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
-			// if (cleanedName != null && !cleanedName.isEmpty()) {
-			// if (!ablyManager.shouldPublishMessage(cleanedMessage,
-			// client.getLocalPlayer().getName())) {
-			// return;
-			// }
-			// ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
-			// cleanedMessage, true);
-			// ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName,
-			// cleanedName);
-			// }
+		} else if (event.getType().equals(ChatMessageType.PRIVATECHATOUT)) {
+			if (cleanedName != null && !cleanedName.isEmpty()) {
+				if (!ablyManager.shouldPublishMessage(cleanedMessage,
+						client.getLocalPlayer().getName())) {
+					return;
+				}
+				ablyManager.shouldShowMessge(client.getLocalPlayer().getName(),
+						cleanedMessage, true);
+				ablyManager.publishMessage("p", cleanedMessage, "p:" + cleanedName,
+						cleanedName);
+			}
 		} else if (event.getType().equals(ChatMessageType.FRIENDSCHAT) && !isLocalPlayerSendingMessage
 				&& !ablyManager.shouldShowMessge(cleanedName, cleanedMessage, true)) {
 			final ChatLineBuffer lineBuffer = client.getChatLineMap()
