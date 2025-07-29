@@ -311,6 +311,11 @@ public class AblyManager {
 		// Immediately null out the reference to prevent new operations
 		ablyRealtime = null;
 		
+		// Clear channel subscription status since we're disconnecting
+		synchronized (channelSubscriptionStatus) {
+			channelSubscriptionStatus.clear();
+		}
+		
 		if (connectionToClose != null) {
 			// Check if we're already shutting down to avoid submitting new tasks
 			if (publishExecutor != null && !publishExecutor.isShutdown()) {

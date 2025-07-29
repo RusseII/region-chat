@@ -723,6 +723,8 @@ public class GlobalChatPlugin extends Plugin {
 		if (extractedName.contains("(level-")) {
 			extractedName = extractedName.substring(0, extractedName.indexOf("(level-")).trim();
 		}
+		// Remove extra spaces that remain from icon placeholders
+		extractedName = extractedName.replaceAll("\\s+", " ").trim();
 		final String cleanName = Text.sanitize(extractedName);
 
 		// Show checking message on client thread
