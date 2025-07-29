@@ -232,21 +232,27 @@ public class GlobalChatPlugin extends Plugin {
 									// Check connection after a delay and notify user if failed
 									scheduler.schedule(() -> {
 										if (!ablyManager.isConnected()) {
-											clientThread.invokeLater(() -> {
-												client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-													"<col=ff9040>Global Chat connection issue - retrying...</col>", null);
-												return true;
-											});
+											// Only show message every 5 attempts to reduce spam
+											if (reconnectAttempts % 5 == 1) {
+												clientThread.invokeLater(() -> {
+													client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+														"<col=ff9040>Global Chat connection issue - retrying...</col>", null);
+													return true;
+												});
+											}
 										}
 									}, 2000, TimeUnit.MILLISECONDS);
 									
 								} catch (Exception e) {
 									log.debug("Error during reconnection", e);
-									clientThread.invokeLater(() -> {
-										client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-											"<col=ff0000>Global Chat connection failed</col>", null);
-										return true;
-									});
+									// Only show error message every 5 attempts to reduce spam
+									if (reconnectAttempts % 5 == 1) {
+										clientThread.invokeLater(() -> {
+											client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+												"<col=ff0000>Global Chat connection failed</col>", null);
+											return true;
+										});
+									}
 								}
 							});
 						}
