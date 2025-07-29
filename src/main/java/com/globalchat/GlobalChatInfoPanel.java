@@ -823,10 +823,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
             // Color code based on connection utilization
             if (connectionUtilization >= 100) {
                 connectionLimitsLabel.setForeground(Color.RED); // Over limit!
-            } else if (connectionUtilization > 90) {
-                connectionLimitsLabel.setForeground(Color.RED); // Critical
-            } else if (connectionUtilization > 75) {
-                connectionLimitsLabel.setForeground(Color.ORANGE); // Warning
+            } else if (connectionUtilization >= 90) {
+                connectionLimitsLabel.setForeground(Color.ORANGE); // Warning - approaching limit
+            } else if (connectionUtilization >= 75) {
+                connectionLimitsLabel.setForeground(new Color(255, 165, 0)); // Light orange warning
             } else {
                 connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR); // Normal
             }
@@ -1030,6 +1030,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 connectionStatusLabel.setText("\u25cf Disconnected");
                 connectionStatusLabel.setForeground(new Color(200, 0, 0)); // Red
             }
+            
         });
     }
     

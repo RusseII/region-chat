@@ -201,6 +201,10 @@ public class AblyManager {
 	}
 	
 	private synchronized void ensureExecutorAvailable() {
+		if (shuttingDown) {
+			log.debug("Shutting down, not creating new executor");
+			return;
+		}
 		if (publishExecutor == null || publishExecutor.isShutdown() || publishExecutor.isTerminated()) {
 			publishExecutor = createPublishExecutor();
 			log.debug("Recreated publish executor");
@@ -302,6 +306,12 @@ public class AblyManager {
 			return false;
 		}
 	}
+	
+	public Map<String, Boolean> getChannelSubscriptionStatus() {
+		synchronized (channelSubscriptionStatus) {
+			return new HashMap<>(channelSubscriptionStatus);
+		}
+	}
 
 
 	public void closeConnection() {
@@ -310,6 +320,11 @@ public class AblyManager {
 		
 		// Immediately null out the reference to prevent new operations
 		ablyRealtime = null;
+		
+		// Clear channel subscription status since we're disconnecting
+		synchronized (channelSubscriptionStatus) {
+			channelSubscriptionStatus.clear();
+		}
 		
 		if (connectionToClose != null) {
 			// Check if we're already shutting down to avoid submitting new tasks
@@ -373,10 +388,19 @@ public class AblyManager {
 	public boolean publishMessage(String t, String message, String channel, String to) {
 		// Build message on client thread (need client data)
 		try {
+			// Validate inputs
+			if (message == null || message.trim().isEmpty()) {
+				log.debug("Attempted to publish null or empty message");
+				return false;
+			}
 			if (client.getLocalPlayer() == null) {
 				return false;
 			}
 			if (config.readOnlyMode()) {
+				return false;
+			}
+			if (ablyRealtime == null || !isConnected()) {
+				log.debug("Not connected, cannot publish message");
 				return false;
 			}
 
@@ -438,11 +462,22 @@ public class AblyManager {
 	public void publishMessageAsync(String t, String message, String channel, String to, java.util.function.Consumer<Boolean> callback) {
 		// Build message on client thread (need client data)
 		try {
+			// Validate inputs
+			if (message == null || message.trim().isEmpty()) {
+				log.debug("Attempted to publish null or empty message");
+				if (callback != null) callback.accept(false);
+				return;
+			}
 			if (client.getLocalPlayer() == null) {
 				if (callback != null) callback.accept(false);
 				return;
 			}
 			if (config.readOnlyMode()) {
+				if (callback != null) callback.accept(false);
+				return;
+			}
+			if (ablyRealtime == null || !isConnected()) {
+				log.debug("Not connected, cannot publish message");
 				if (callback != null) callback.accept(false);
 				return;
 			}
@@ -574,9 +609,10 @@ public class AblyManager {
 			final ChatMessageBuilder chatMessageBuilder = new ChatMessageBuilder()
 					.append(receivedMsg);
 
-			if (msg.type.equals("p") && client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null 
-					&& !username.equals(client.getLocalPlayer().getName())
-					&& msg.to.equals(client.getLocalPlayer().getName())) {
+			String localPlayerName = client.getLocalPlayer() != null ? client.getLocalPlayer().getName() : null;
+			if (msg.type.equals("p") && localPlayerName != null 
+					&& !Text.sanitize(username).equals(Text.sanitize(localPlayerName))
+					&& Text.sanitize(msg.to).equals(Text.sanitize(localPlayerName))) {
 
 				chatMessageManager.queue(QueuedMessage.builder()
 						.type(ChatMessageType.PRIVATECHAT)
@@ -593,29 +629,31 @@ public class AblyManager {
 
 				// Cache combat level while accessing player data
 				for (Player player : client.getPlayers()) {
-					if (player != null &&
-							player.getName() != null &&
-							username.equals(player.getName())) {
+					if (player != null && player.getName() != null) {
+						String playerNameSanitized = Text.sanitize(player.getName());
+						String usernameSanitized = Text.sanitize(username);
 						
-						// Cache the combat level for future use
-						playerCombats.put(Text.sanitize(player.getName()), player.getCombatLevel());
-						
-						player.setOverheadText(receivedMsg);
-						player.setOverheadCycle(CYCLES_FOR_OVERHEAD_TEXT);
-						break;
+						if (usernameSanitized.equals(playerNameSanitized)) {
+							// Cache the combat level for future use
+							playerCombats.put(playerNameSanitized, player.getCombatLevel());
+							
+							player.setOverheadText(receivedMsg);
+							player.setOverheadCycle(CYCLES_FOR_OVERHEAD_TEXT);
+							break;
+						}
 					}
 				}
 
-			} else if (msg.type.equals("f") && client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null
-					&& !username.equals(client.getLocalPlayer().getName())) {
+			} else if (msg.type.equals("f") && localPlayerName != null
+					&& !Text.sanitize(username).equals(Text.sanitize(localPlayerName))) {
 
 				chatMessageManager.queue(QueuedMessage.builder()
 						.type(ChatMessageType.FRIENDSCHAT)
 						.name(symbol + username).sender(msg.to)
 						.runeLiteFormattedMessage(chatMessageBuilder.build())
 						.build());
-			} else if (msg.type.equals("c") && client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null
-					&& !username.equals(client.getLocalPlayer().getName())) {
+			} else if (msg.type.equals("c") && localPlayerName != null
+					&& !Text.sanitize(username).equals(Text.sanitize(localPlayerName))) {
 
 				chatMessageManager.queue(QueuedMessage.builder()
 						.type(ChatMessageType.CLAN_CHAT)
@@ -677,7 +715,8 @@ public class AblyManager {
 	}
 
 	public boolean shouldShowMessge(String name, String message, Boolean set) {
-		final String sanitizedName = Text.toJagexName(Text.removeTags(name));
+		// Use Text.sanitize for consistency with other name handling
+		final String sanitizedName = Text.sanitize(name);
 
 		String prevMessage = previousMessages.get(sanitizedName);
 
@@ -700,7 +739,7 @@ public class AblyManager {
 					new Param("clientId", name),
 			};
 			clientOptions.authHeaders = params;
-			clientOptions.authUrl = "https://global-chat-plugin.vercel.app/api/token";
+			clientOptions.authUrl = "https://global-chat-frontend.vercel.app/api/token";
 			
 			// Critical: Disable echo messages to reduce message count by 50%
 			clientOptions.echoMessages = false;
@@ -759,6 +798,16 @@ public class AblyManager {
 	}
 
 	public void subscribeToCorrectChannel(String channelName, String key) {
+		// Validate inputs
+		if (channelName == null || channelName.trim().isEmpty()) {
+			log.error("Invalid channel name provided for subscription");
+			return;
+		}
+		if (key == null) {
+			log.error("Invalid key provided for channel: {}", channelName);
+			return;
+		}
+		
 		if (ablyRealtime == null) {
 			log.debug("AblyRealtime is null, cannot subscribe to channel: {}", channelName);
 			return;
@@ -793,7 +842,7 @@ public class AblyManager {
 						channelSubscriptionStatus.put(channelName, true);
 					}
 					
-					log.debug("Successfully subscribed to channel: {}", channelName);
+					log.info("Successfully subscribed to channel: {}", channelName);
 				} catch (AblyException err) {
 					log.error("Ably subscribe error for channel: {}", channelName, err);
 					// Mark channel subscription as failed

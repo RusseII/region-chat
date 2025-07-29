@@ -19,7 +19,7 @@ import okhttp3.Response;
 @Slf4j
 @Singleton
 public class SupporterManager {
-    private static final String SUPPORTERS_URL = "https://global-chat-plugin.vercel.app/api/supporters";
+    private static final String SUPPORTERS_URL = "https://global-chat-frontend.vercel.app/api/supporters";
     private static final long REFRESH_INTERVAL_MINUTES = 10;
 
     private final Gson gson;
