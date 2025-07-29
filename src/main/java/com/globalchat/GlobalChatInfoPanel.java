@@ -500,7 +500,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 Desktop.getDesktop().browse(new URI(url));
             }
         } catch (Exception e) {
-            log.error("Failed to open URL: " + url, e);
+            log.debug("Failed to open URL: " + url, e);
         }
     }
 
@@ -706,7 +706,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         httpClient.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                log.warn("Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
+                log.debug("Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
                 
                 // Retry on network failures with exponential backoff
                 if (attemptCount < 2) {
@@ -729,7 +729,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                         parseConnectionStatsResponse(responseBody);
                         log.debug("Successfully fetched connection stats on attempt {}", attemptCount + 1);
                     } else {
-                        log.warn("Failed to fetch connection stats: HTTP {} (attempt {})", response.code(), attemptCount + 1);
+                        log.debug("Failed to fetch connection stats: HTTP {} (attempt {})", response.code(), attemptCount + 1);
                         
                         // Retry on HTTP errors (5xx server errors, but not 4xx client errors)
                         if (response.code() >= 500 && attemptCount < 2) {
@@ -780,7 +780,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 log.debug("Updated connection stats: {}/{}", response.currentConnections, response.maxConnections);
             }
         } catch (Exception e) {
-            log.error("Error parsing connection stats response", e);
+            log.debug("Error parsing connection stats response", e);
         }
     }
     
@@ -823,10 +823,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
             // Color code based on connection utilization
             if (connectionUtilization >= 100) {
                 connectionLimitsLabel.setForeground(Color.RED); // Over limit!
-            } else if (connectionUtilization > 90) {
-                connectionLimitsLabel.setForeground(Color.RED); // Critical
-            } else if (connectionUtilization > 75) {
-                connectionLimitsLabel.setForeground(Color.ORANGE); // Warning
+            } else if (connectionUtilization >= 90) {
+                connectionLimitsLabel.setForeground(Color.ORANGE); // Warning - approaching limit
+            } else if (connectionUtilization >= 75) {
+                connectionLimitsLabel.setForeground(new Color(255, 165, 0)); // Light orange warning
             } else {
                 connectionLimitsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR); // Normal
             }
@@ -1030,6 +1030,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
                 connectionStatusLabel.setText("\u25cf Disconnected");
                 connectionStatusLabel.setForeground(new Color(200, 0, 0)); // Red
             }
+            
         });
     }
     
