@@ -236,7 +236,7 @@ public class GlobalChatPlugin extends Plugin {
 											if (reconnectAttempts % 5 == 1) {
 												clientThread.invokeLater(() -> {
 													client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-														"<col=ff9040>Global Chat connection issue - retrying... (Support on Patreon to help increase connection limits)</col>", null);
+														"<col=ff9040>Global Chat at connection limit (200 players max) - retrying... Support on Patreon to increase limits!</col>", null);
 													return true;
 												});
 											}
@@ -249,7 +249,7 @@ public class GlobalChatPlugin extends Plugin {
 									if (reconnectAttempts % 5 == 1) {
 										clientThread.invokeLater(() -> {
 											client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-												"<col=ff0000>Global Chat connection failed - Connection limit may be reached. Support on Patreon to increase limits!</col>", null);
+												"<col=ff0000>Global Chat full - 200 player limit reached! Support on Patreon to increase connection limits!</col>", null);
 											return true;
 										});
 									}
