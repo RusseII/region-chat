@@ -171,7 +171,7 @@ public class GlobalChatPlugin extends Plugin {
 					return messages.isEmpty();
 				});
 			} catch (Exception e) {
-				log.error("Error during cleanup", e);
+				log.debug("Error during cleanup", e);
 			}
 		}, 10, 10, TimeUnit.SECONDS);
 
@@ -241,7 +241,7 @@ public class GlobalChatPlugin extends Plugin {
 									}, 2000, TimeUnit.MILLISECONDS);
 									
 								} catch (Exception e) {
-									log.error("Error during reconnection", e);
+									log.debug("Error during reconnection", e);
 									clientThread.invokeLater(() -> {
 										client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
 											"<col=ff0000>Global Chat connection failed</col>", null);
@@ -532,7 +532,7 @@ public class GlobalChatPlugin extends Plugin {
 							});
 						}
 					} catch (Exception e) {
-						log.error("Error during transformation retry for: {}", originalMessage, e);
+						log.debug("Error during transformation retry for: {}", originalMessage, e);
 						// Clean up on error
 						pendingCommands.remove(originalMessage);
 					}
@@ -580,7 +580,7 @@ public class GlobalChatPlugin extends Plugin {
 							callback.accept(false);
 					}
 				} catch (Exception e) {
-					log.error("Error accessing MessageNode for '{}': ", originalMessage, e);
+					log.debug("Error accessing MessageNode for '{}': ", originalMessage, e);
 					if (attempt >= 2) {
 						publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_ACCESS_ERROR");
 						pendingCommands.remove(originalMessage);
@@ -593,7 +593,7 @@ public class GlobalChatPlugin extends Plugin {
 				}
 			} else {
 				// Handle null MessageNode case
-				log.warn("MessageNode is null for command: '{}'", originalMessage);
+				log.debug("MessageNode is null for command: '{}'", originalMessage);
 				if (attempt >= 2) {
 					publishMessageToGlobalChat("w", originalMessage, playerName, "MESSAGENODE_NULL");
 					pendingCommands.remove(originalMessage);
@@ -606,7 +606,7 @@ public class GlobalChatPlugin extends Plugin {
 			}
 
 		} catch (Exception e) {
-			log.error("Error checking transformation for '{}': ", originalMessage, e);
+			log.debug("Error checking transformation for '{}': ", originalMessage, e);
 			if (attempt >= 2) {
 				publishMessageToGlobalChat("w", originalMessage, playerName, "TRANSFORMATION_CHECK_ERROR");
 				pendingCommands.remove(originalMessage);
@@ -641,7 +641,7 @@ public class GlobalChatPlugin extends Plugin {
 				}
 			});
 		} catch (Exception e) {
-			log.error("Error preparing message for publish: '{}'", message, e);
+			log.debug("Error preparing message for publish: '{}'", message, e);
 			// Remove global chat icon from the message since it failed to publish
 			removeGlobalChatIconFromRecentMessage(message);
 		}
@@ -657,7 +657,7 @@ public class GlobalChatPlugin extends Plugin {
 					try {
 						// Validate connection state and message node before manipulation
 						if (event.getMessageNode() == null) {
-							log.warn("MessageNode is null, skipping chat manipulation");
+							log.debug("MessageNode is null, skipping chat manipulation");
 							return;
 						}
 						
@@ -670,7 +670,7 @@ public class GlobalChatPlugin extends Plugin {
 						// Remove the original message
 						final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
 						if (lineBuffer == null) {
-							log.warn("ChatLineBuffer is null, skipping chat manipulation");
+							log.debug("ChatLineBuffer is null, skipping chat manipulation");
 							return;
 						}
 						
@@ -696,7 +696,7 @@ public class GlobalChatPlugin extends Plugin {
 						// Re-add the message with icons
 						client.addChatMessage(ChatMessageType.PUBLICCHAT, symbol + cleanedName, cleanedMessage, null);
 					} catch (Exception e) {
-						log.warn("Failed to add global chat icon to message: {}", e.getMessage());
+						log.debug("Failed to add global chat icon to message: {}", e.getMessage());
 						// Message will display normally without icon, preventing game freeze
 					}
 				}
@@ -845,7 +845,7 @@ public class GlobalChatPlugin extends Plugin {
 		try {
 			encodedName = java.net.URLEncoder.encode(cleanName, "UTF-8");
 		} catch (java.io.UnsupportedEncodingException e) {
-			log.error("Failed to encode player name: {}", cleanName);
+			log.debug("Failed to encode player name: {}", cleanName);
 			encodedName = cleanName.replace(" ", "%20"); // Fallback
 		}
 		
@@ -863,7 +863,7 @@ public class GlobalChatPlugin extends Plugin {
 		okHttpClient.newCall(request).enqueue(new okhttp3.Callback() {
 			@Override
 			public void onFailure(okhttp3.Call call, java.io.IOException e) {
-				log.error("Error checking player status for " + cleanName, e);
+				log.debug("Error checking player status for " + cleanName, e);
 				clientThread.invokeLater(() -> {
 					String errorMessage = "<col=ff0000>Failed to check Global Chat status for " + cleanName + " (connection error)</col>";
 					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", errorMessage, null);
@@ -1012,7 +1012,7 @@ public class GlobalChatPlugin extends Plugin {
 						"<col=ff0000>Message failed to send to Global Chat</col>", null);
 			}
 		} catch (Exception e) {
-			log.error("Error notifying about failed message publish", e);
+			log.debug("Error notifying about failed message publish", e);
 		}
 	}
 

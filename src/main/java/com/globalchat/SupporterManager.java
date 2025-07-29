@@ -111,7 +111,7 @@ public class SupporterManager {
                         parseSupportersResponse(responseBody);
                         log.debug("Successfully fetched {} supporters", supporters.size());
                     } else {
-                        log.warn("Failed to fetch supporters: HTTP {}", response.code());
+                        log.debug("Failed to fetch supporters: HTTP {}", response.code());
                     }
                 } finally {
                     response.close();

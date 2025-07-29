@@ -269,7 +269,7 @@ public class AblyManager {
 				ablyRealtime.channels.get(channelName).detach();
 				log.debug("Closed channel: {}", channelName);
 			} catch (AblyException err) {
-				log.error("Error detaching from channel: {}", channelName, err);
+				log.debug("Error detaching from channel: {}", channelName, err);
 			}
 		});
 		
@@ -336,7 +336,7 @@ public class AblyManager {
 						connectionToClose.close();
 						log.debug("Connection properly closed");
 					} catch (Exception e) {
-						log.error("Error closing connection", e);
+						log.debug("Error closing connection", e);
 					}
 				});
 			} else {
@@ -345,7 +345,7 @@ public class AblyManager {
 					log.debug("Closing Ably connection synchronously during shutdown");
 					connectionToClose.close();
 				} catch (Exception e) {
-					log.error("Error closing connection during shutdown", e);
+					log.debug("Error closing connection during shutdown", e);
 				}
 			}
 		}
@@ -447,14 +447,14 @@ public class AblyManager {
 					currentChannel.publish("event", msg);
 					log.debug("Published message to channel: {}", channel);
 				} catch (AblyException err) {
-					log.error("Ably publish error", err);
+					log.debug("Ably publish error", err);
 					handleAblyError(err);
 				}
 			});
 			
 			return true;
 		} catch (Exception err) {
-			log.error("Error preparing message for publish", err);
+			log.debug("Error preparing message for publish", err);
 			return false;
 		}
 	}
@@ -528,14 +528,14 @@ public class AblyManager {
 					log.debug("Published message to channel: {}", channel);
 					if (callback != null) callback.accept(true);
 				} catch (AblyException err) {
-					log.error("Ably publish error", err);
+					log.debug("Ably publish error", err);
 					handleAblyError(err);
 					if (callback != null) callback.accept(false);
 				}
 			});
 			
 		} catch (Exception err) {
-			log.error("Error preparing message for publish", err);
+			log.debug("Error preparing message for publish", err);
 			if (callback != null) callback.accept(false);
 		}
 	}
@@ -751,7 +751,7 @@ public class AblyManager {
 			
 			// Add connection state monitoring
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.disconnected, state -> {
-				log.warn("Connection disconnected: " + state.reason);
+				log.debug("Connection disconnected: " + state.reason);
 				// Thread-safe clear of channel subscription status since we're disconnected
 				synchronized (channelSubscriptionStatus) {
 					channelSubscriptionStatus.clear();
@@ -759,7 +759,7 @@ public class AblyManager {
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.failed, state -> {
-				log.error("Connection failed: " + state.reason);
+				log.debug("Connection failed: " + state.reason);
 				// Thread-safe clear of channel subscription status on failure
 				synchronized (channelSubscriptionStatus) {
 					channelSubscriptionStatus.clear();
@@ -776,11 +776,11 @@ public class AblyManager {
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.suspended, state -> {
-				log.warn("Connection suspended: " + state.reason);
+				log.debug("Connection suspended: " + state.reason);
 			});
 			
 		} catch (AblyException e) {
-			log.error("Failed to setup Ably connection", e);
+			log.debug("Failed to setup Ably connection", e);
 			handleAblyError(e);
 		}
 	}
@@ -800,11 +800,11 @@ public class AblyManager {
 	public void subscribeToCorrectChannel(String channelName, String key) {
 		// Validate inputs
 		if (channelName == null || channelName.trim().isEmpty()) {
-			log.error("Invalid channel name provided for subscription");
+			log.debug("Invalid channel name provided for subscription");
 			return;
 		}
 		if (key == null) {
-			log.error("Invalid key provided for channel: {}", channelName);
+			log.debug("Invalid key provided for channel: {}", channelName);
 			return;
 		}
 		
@@ -842,9 +842,9 @@ public class AblyManager {
 						channelSubscriptionStatus.put(channelName, true);
 					}
 					
-					log.info("Successfully subscribed to channel: {}", channelName);
+					log.debug("Successfully subscribed to channel: {}", channelName);
 				} catch (AblyException err) {
-					log.error("Ably subscribe error for channel: {}", channelName, err);
+					log.debug("Ably subscribe error for channel: {}", channelName, err);
 					// Mark channel subscription as failed
 					synchronized (channelSubscriptionStatus) {
 						channelSubscriptionStatus.put(channelName, false);
@@ -853,7 +853,7 @@ public class AblyManager {
 				}
 			});
 		} catch (AblyException err) {
-			log.error("Error preparing channel options for: {}", channelName, err);
+			log.debug("Error preparing channel options for: {}", channelName, err);
 			synchronized (channelSubscriptionStatus) {
 				channelSubscriptionStatus.put(channelName, false);
 			}
