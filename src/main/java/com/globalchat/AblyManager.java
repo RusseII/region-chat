@@ -182,6 +182,16 @@ public class AblyManager {
 	private final Map<String, Long> lastMessageTime = new HashMap<>();
 	private final Map<Integer, Long> lastErrorMessageTimePerWorld = new HashMap<>();
 	private static final long ERROR_MESSAGE_COOLDOWN = 1800000; // 30 minutes
+	
+	// Track connection limit errors to prevent spam
+	private volatile long lastConnectionLimitError = 0;
+	private static final long CONNECTION_LIMIT_BACKOFF = 300000; // 5 minutes
+	private volatile int connectionAttemptCount = 0;
+	
+	// Token caching to reduce API calls
+	private volatile String cachedTokenRequest = null;
+	private volatile long tokenRequestTime = 0;
+	private static final long TOKEN_CACHE_DURATION = 3300000; // 55 minutes (tokens expire in 60)
 
 	@Inject
 	public AblyManager(Client client, GlobalChatConfig config, @Named("developerMode") boolean developerMode, SupporterManager supporterManager) {
@@ -215,6 +225,14 @@ public class AblyManager {
 		// Reset shutdown flag when starting a new connection
 		shuttingDown = false;
 		
+		// Check if we're in connection limit backoff period
+		long now = System.currentTimeMillis();
+		if (lastConnectionLimitError > 0 && (now - lastConnectionLimitError) < CONNECTION_LIMIT_BACKOFF) {
+			long remainingBackoff = CONNECTION_LIMIT_BACKOFF - (now - lastConnectionLimitError);
+			log.debug("In connection limit backoff period. Remaining: {} ms", remainingBackoff);
+			return;
+		}
+		
 		// Prevent multiple concurrent connections with atomic check-and-set
 		synchronized (this) {
 			if (isConnecting) {
@@ -240,11 +258,15 @@ public class AblyManager {
 			}
 			
 			isConnecting = true;
+			connectionAttemptCount++;
 		}
+		
+		log.debug("Starting connection attempt #{} for player: {}", connectionAttemptCount, playerName);
 		
 		try {
 			setupAblyInstances(playerName);
 		} catch (Exception e) {
+			log.debug("Connection attempt #{} failed", connectionAttemptCount);
 			handleAblyError(e);
 		} finally {
 			isConnecting = false;
@@ -315,6 +337,8 @@ public class AblyManager {
 
 
 	public void closeConnection() {
+		log.debug("[CONNECTION-CLOSE] Closing connection");
+		
 		// Capture reference to avoid race conditions
 		final AblyRealtime connectionToClose = ablyRealtime;
 		
@@ -733,13 +757,27 @@ public class AblyManager {
 
 	private void setupAblyInstances(String playerName) {
 		try {
+			// Close existing connection before creating a new one
+			if (ablyRealtime != null) {
+				log.debug("Closing existing Ably connection before creating new one");
+				try {
+					ablyRealtime.close();
+				} catch (Exception e) {
+					log.debug("Error closing existing connection", e);
+				}
+				ablyRealtime = null;
+			}
+			
 			ClientOptions clientOptions = new ClientOptions();
 			String name = Text.sanitize(playerName);
-			Param[] params = new Param[] {
-					new Param("clientId", name),
+			
+			// Use authCallback instead of authUrl for better control and caching
+			clientOptions.authCallback = new io.ably.lib.types.AuthOptions.TokenCallback() {
+				@Override
+				public Object getTokenRequest(io.ably.lib.types.AuthOptions.TokenParams params) throws AblyException {
+					return getOrFetchTokenRequest(name);
+				}
 			};
-			clientOptions.authHeaders = params;
-			clientOptions.authUrl = "https://global-chat-frontend.vercel.app/api/token";
 			
 			// Critical: Disable echo messages to reduce message count by 50%
 			clientOptions.echoMessages = false;
@@ -747,6 +785,7 @@ public class AblyManager {
 			// Connection timeouts not available in this Ably version
 			// Will rely on default timeout behavior
 			
+			log.debug("Creating new AblyRealtime instance for player: {}", name);
 			ablyRealtime = new AblyRealtime(clientOptions);
 			
 			// Add connection state monitoring
@@ -760,6 +799,13 @@ public class AblyManager {
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.failed, state -> {
 				log.debug("Connection failed: " + state.reason);
+				// Check if it's a connection limit error
+				if (state.reason != null && state.reason.message != null && 
+				    (state.reason.message.contains("connection limit") || 
+				     state.reason.code == 40111)) {
+					lastConnectionLimitError = System.currentTimeMillis();
+					log.debug("Connection limit error detected, entering backoff period");
+				}
 				// Thread-safe clear of channel subscription status on failure
 				synchronized (channelSubscriptionStatus) {
 					channelSubscriptionStatus.clear();
@@ -767,7 +813,10 @@ public class AblyManager {
 			});
 			
 			ablyRealtime.connection.on(io.ably.lib.realtime.ConnectionEvent.connected, state -> {
-				log.debug("Connection established successfully");
+				log.debug("Connection established successfully after {} attempts", connectionAttemptCount);
+				// Reset error tracking on successful connection
+				lastConnectionLimitError = 0;
+				connectionAttemptCount = 0;
 			});
 			
 			// Handle connection state changes that indicate we need to resubscribe
@@ -796,6 +845,59 @@ public class AblyManager {
 		}
 		return keyBuilder.toString();
 	}
+	
+	private synchronized Object getOrFetchTokenRequest(String clientId) throws AblyException {
+		long now = System.currentTimeMillis();
+		
+		// Check if we have a valid cached token
+		if (cachedTokenRequest != null && (now - tokenRequestTime) < TOKEN_CACHE_DURATION) {
+			log.debug("[TOKEN-CACHE] Using cached token request, age: {} ms", (now - tokenRequestTime));
+			// Parse the cached JSON and return it
+			try {
+				return gson.fromJson(cachedTokenRequest, JsonObject.class);
+			} catch (Exception e) {
+				log.debug("[TOKEN-CACHE] Error parsing cached token, will fetch new one", e);
+				cachedTokenRequest = null;
+			}
+		}
+		
+		log.debug("[TOKEN-FETCH] Fetching new token request from API");
+		
+		try {
+			// Make HTTP request to get token
+			java.net.URL url = new java.net.URL("https://global-chat-frontend.vercel.app/api/token");
+			java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+			conn.setRequestMethod("GET");
+			conn.setRequestProperty("clientId", clientId);
+			conn.setConnectTimeout(5000);
+			conn.setReadTimeout(5000);
+			
+			int responseCode = conn.getResponseCode();
+			if (responseCode == 200) {
+				try (java.io.BufferedReader br = new java.io.BufferedReader(
+						new java.io.InputStreamReader(conn.getInputStream()))) {
+					StringBuilder response = new StringBuilder();
+					String line;
+					while ((line = br.readLine()) != null) {
+						response.append(line);
+					}
+					
+					// Cache the response
+					cachedTokenRequest = response.toString();
+					tokenRequestTime = now;
+					log.debug("[TOKEN-FETCH] Successfully fetched and cached token request");
+					
+					// Return parsed JSON
+					return gson.fromJson(cachedTokenRequest, JsonObject.class);
+				}
+			} else {
+			throw new AblyException("Failed to fetch token: HTTP " + responseCode, 40140, responseCode);
+			}
+		} catch (Exception e) {
+			log.debug("[TOKEN-FETCH] Error fetching token request", e);
+			throw new AblyException("Failed to fetch token: " + e.getMessage(), 40140, 500);
+		}
+	}
 
 	public void subscribeToCorrectChannel(String channelName, String key) {
 		// Validate inputs
@@ -809,7 +911,21 @@ public class AblyManager {
 		}
 		
 		if (ablyRealtime == null) {
-			log.debug("AblyRealtime is null, cannot subscribe to channel: {}", channelName);
+			log.debug("[SUBSCRIBE-ERROR] AblyRealtime is null, cannot subscribe to channel: {}", channelName);
+			return;
+		}
+		
+		// Check connection state before subscribing
+		try {
+			io.ably.lib.realtime.ConnectionState state = ablyRealtime.connection.state;
+			log.debug("[SUBSCRIBE-STATE] Channel: {}, Connection state: {}", channelName, state);
+			if (state != io.ably.lib.realtime.ConnectionState.connected && 
+			    state != io.ably.lib.realtime.ConnectionState.connecting) {
+				log.debug("[SUBSCRIBE-SKIP] Not subscribing to {} - connection not ready (state: {})", channelName, state);
+				return;
+			}
+		} catch (Exception e) {
+			log.debug("[SUBSCRIBE-ERROR] Error checking connection state", e);
 			return;
 		}
 
@@ -842,9 +958,9 @@ public class AblyManager {
 						channelSubscriptionStatus.put(channelName, true);
 					}
 					
-					log.debug("Successfully subscribed to channel: {}", channelName);
+					log.debug("[SUBSCRIBE-SUCCESS] Successfully subscribed to channel: {}", channelName);
 				} catch (AblyException err) {
-					log.debug("Ably subscribe error for channel: {}", channelName, err);
+					log.debug("[SUBSCRIBE-ERROR] Ably subscribe error for channel: {} - Error: {}", channelName, err.getMessage(), err);
 					// Mark channel subscription as failed
 					synchronized (channelSubscriptionStatus) {
 						channelSubscriptionStatus.put(channelName, false);
@@ -924,7 +1040,15 @@ public class AblyManager {
 			e instanceof AblyException && ((AblyException) e).errorInfo != null && 
 			(((AblyException) e).errorInfo.code == 40005 || // Connection limit
 			 ((AblyException) e).errorInfo.code == 40006 || // Message limit
-			 ((AblyException) e).errorInfo.code == 40007)) { // Channel limit
+			 ((AblyException) e).errorInfo.code == 40007 || // Channel limit
+			 ((AblyException) e).errorInfo.code == 40111)) { // Account restricted (connection limit exceeded)
+			
+			// Mark connection limit error for backoff
+			if (e instanceof AblyException && ((AblyException) e).errorInfo != null && 
+			    ((AblyException) e).errorInfo.code == 40111) {
+				lastConnectionLimitError = System.currentTimeMillis();
+				log.debug("Error 40111 detected - account connection limit exceeded, entering backoff");
+			}
 			
 			// Show in-game chat message with rate limiting
 			showInGameErrorMessage(
