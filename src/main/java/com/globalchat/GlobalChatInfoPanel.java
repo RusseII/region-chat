@@ -637,6 +637,9 @@ public class GlobalChatInfoPanel extends PluginPanel {
                             
                             UserCountData data = new UserCountData(userCountResponse.totalOnline, currentWorldCount, currentWorldId, topWorldId, topWorldCount);
                             
+                            lastUserCountsFetch = System.currentTimeMillis();
+                            log.debug("[USER-COUNTS] Successfully fetched and cached");
+                            
                             // Update UI on EDT
                             javax.swing.SwingUtilities.invokeLater(() -> {
                                 // Only update if the labels exist (not commented out)
@@ -687,7 +690,17 @@ public class GlobalChatInfoPanel extends PluginPanel {
         fetchConnectionStatsWithRetry(0);
     }
 
+    // Cache connection stats to avoid frequent API calls
+    private volatile long lastConnectionStatsFetch = 0;
+    private static final long CONNECTION_STATS_CACHE_DURATION = 240000; // 4 minutes
+    
     private void fetchConnectionStatsWithRetry(int attemptCount) {
+        // Don't fetch if we have recent data
+        long now = System.currentTimeMillis();
+        if (now - lastConnectionStatsFetch < CONNECTION_STATS_CACHE_DURATION) {
+            log.debug("[STATS] Using cached connection stats, age: {} ms", (now - lastConnectionStatsFetch));
+            return;
+        }
         // Skip if we don't have the required dependencies
         if (httpClient == null || gson == null) {
             return;
@@ -706,7 +719,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         httpClient.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                log.debug("Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
+                log.debug("[STATS] Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
                 
                 // Retry on network failures with exponential backoff
                 if (attemptCount < 2) {
@@ -727,9 +740,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         parseConnectionStatsResponse(responseBody);
-                        log.debug("Successfully fetched connection stats on attempt {}", attemptCount + 1);
+                        lastConnectionStatsFetch = System.currentTimeMillis();
+                        log.debug("[STATS] Successfully fetched connection stats on attempt {}", attemptCount + 1);
                     } else {
-                        log.debug("Failed to fetch connection stats: HTTP {} (attempt {})", response.code(), attemptCount + 1);
+                        log.debug("[STATS] Failed to fetch connection stats: HTTP {} (attempt {})", response.code(), attemptCount + 1);
                         
                         // Retry on HTTP errors (5xx server errors, but not 4xx client errors)
                         if (response.code() >= 500 && attemptCount < 2) {
@@ -1043,8 +1057,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
         connectionStatusTimer = new Timer(2000, e -> updateConnectionStatus());
         connectionStatusTimer.start();
         
-        // Update connection stats every 30 seconds (less frequent)
-        Timer connectionStatsTimer = new Timer(30000, e -> fetchConnectionStats());
+        // Update connection stats every 5 minutes (reduced from 30 seconds)
+        Timer connectionStatsTimer = new Timer(300000, e -> fetchConnectionStats());
         connectionStatsTimer.start();
     }
 }

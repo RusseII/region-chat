@@ -20,14 +20,18 @@ import okhttp3.Response;
 @Singleton
 public class SupporterManager {
     private static final String SUPPORTERS_URL = "https://global-chat-frontend.vercel.app/api/supporters";
-    private static final long REFRESH_INTERVAL_MINUTES = 10;
+    private static final long REFRESH_INTERVAL_MINUTES = 60; // Reduced from 10 to 60 minutes
+    private static final long RETRY_DELAY_SECONDS = 30;
+    private static final int MAX_RETRIES = 3;
 
     private final Gson gson;
     private final OkHttpClient httpClient;
     private final ScheduledExecutorService scheduler;
-    private List<Supporter> supporters = new ArrayList<>();
-    private int totalSupport = 0;
-    private String lastUpdated = "";
+    private volatile List<Supporter> supporters = new ArrayList<>();
+    private volatile int totalSupport = 0;
+    private volatile String lastUpdated = "";
+    private volatile int consecutiveFailures = 0;
+    private volatile long lastFetchAttempt = 0;
 
     @Inject
     public SupporterManager(Gson gson, OkHttpClient httpClient) {
@@ -93,6 +97,25 @@ public class SupporterManager {
     }
 
     private void fetchSupporters() {
+        // Rate limit: Don't fetch more than once per minute
+        long now = System.currentTimeMillis();
+        if (now - lastFetchAttempt < 60000) {
+            log.debug("[SUPPORTERS] Skipping fetch - too soon since last attempt");
+            return;
+        }
+        lastFetchAttempt = now;
+        
+        // Exponential backoff if we've had failures
+        if (consecutiveFailures > 0) {
+            long backoffTime = Math.min(300000, RETRY_DELAY_SECONDS * 1000 * (long)Math.pow(2, consecutiveFailures - 1));
+            if (now - lastFetchAttempt < backoffTime) {
+                log.debug("[SUPPORTERS] In backoff period after {} failures", consecutiveFailures);
+                return;
+            }
+        }
+        
+        log.debug("[SUPPORTERS] Fetching supporter list");
+        
         Request request = new Request.Builder()
                 .url(SUPPORTERS_URL)
                 .build();
@@ -100,7 +123,13 @@ public class SupporterManager {
         httpClient.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                log.error("Error fetching supporters", e);
+                consecutiveFailures++;
+                log.debug("[SUPPORTERS] Error fetching supporters (failure #{})", consecutiveFailures, e);
+                
+                // After MAX_RETRIES failures, back off for longer
+                if (consecutiveFailures >= MAX_RETRIES) {
+                    log.debug("[SUPPORTERS] Max retries reached, will retry in next scheduled interval");
+                }
             }
 
             @Override
@@ -109,9 +138,11 @@ public class SupporterManager {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         parseSupportersResponse(responseBody);
-                        log.debug("Successfully fetched {} supporters", supporters.size());
+                        consecutiveFailures = 0; // Reset on success
+                        log.debug("[SUPPORTERS] Successfully fetched {} supporters", supporters.size());
                     } else {
-                        log.debug("Failed to fetch supporters: HTTP {}", response.code());
+                        consecutiveFailures++;
+                        log.debug("[SUPPORTERS] Failed to fetch supporters: HTTP {} (failure #{})", response.code(), consecutiveFailures);
                     }
                 } finally {
                     response.close();
