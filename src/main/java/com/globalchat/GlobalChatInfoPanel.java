@@ -74,13 +74,9 @@ public class GlobalChatInfoPanel extends PluginPanel {
     private final Client client;
     private final OkHttpClient httpClient;
     private final Gson gson;
-    private JLabel totalUsersLabel;
-    private JLabel currentWorldUsersLabel;
-    private JLabel topWorldLabel;
     private JLabel readOnlyStatusLabel;
     private JLabel connectionStatusLabel;
     private JLabel connectionLimitsLabel;
-    private Timer userCountUpdateTimer;
     private Timer connectionStatusTimer;
     private ConnectionStatsResponse connectionStats = null;
     private boolean hasReceivedValidData = false;
@@ -571,123 +567,28 @@ public class GlobalChatInfoPanel extends PluginPanel {
         // panel.add(topWorldLabel, gbc);
 
         // Start periodic updates
-        // startUserCountUpdates(); // Commented out - online users disabled
         startConnectionStatusUpdates();
 
         return panel;
     }
 
-    private void startUserCountUpdates() {
-        // Initial update
-        updateUserCounts();
-        
-        // Update every 30 seconds
-        userCountUpdateTimer = new Timer(30000, e -> {
-            updateUserCounts();
-            fetchConnectionStats();
-        });
-        userCountUpdateTimer.start();
-    }
-
-    private void updateUserCounts() {
-        // Skip if we don't have the required dependencies (test constructor)
-        if (httpClient == null || gson == null) {
-            return;
-        }
-        
-        Request request = new Request.Builder()
-            .url("https://global-chat-frontend.vercel.app/api/user-counts")
-            .build();
-        
-        httpClient.newCall(request).enqueue(new okhttp3.Callback() {
-            @Override
-            public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                log.debug("Failed to fetch user counts: {}", e.getMessage());
-            }
-
-            @Override
-            public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
-                try {
-                    if (response.isSuccessful() && response.body() != null) {
-                        String responseBody = response.body().string();
-                        UserCountResponse userCountResponse = gson.fromJson(responseBody, UserCountResponse.class);
-                        
-                        if (userCountResponse != null) {
-                            // Get current world count if available
-                            String currentWorldId = getCurrentWorldId();
-                            int currentWorldCount = 0;
-                            if (currentWorldId != null && userCountResponse.worldCounts != null) {
-                                Integer worldCount = userCountResponse.worldCounts.get(currentWorldId);
-                                if (worldCount != null) {
-                                    currentWorldCount = worldCount;
-                                }
-                            }
-                            
-                            // Find top world
-                            String topWorldId = null;
-                            int topWorldCount = 0;
-                            if (userCountResponse.worldCounts != null) {
-                                for (Map.Entry<String, Integer> entry : userCountResponse.worldCounts.entrySet()) {
-                                    if (entry.getValue() > topWorldCount) {
-                                        topWorldCount = entry.getValue();
-                                        topWorldId = entry.getKey();
-                                    }
-                                }
-                            }
-                            
-                            UserCountData data = new UserCountData(userCountResponse.totalOnline, currentWorldCount, currentWorldId, topWorldId, topWorldCount);
-                            
-                            // Update UI on EDT
-                            javax.swing.SwingUtilities.invokeLater(() -> {
-                                // Only update if the labels exist (not commented out)
-                                if (totalUsersLabel != null) {
-                                    if (data.totalOnline > 0) {
-                                        totalUsersLabel.setText("Total Online: " + data.totalOnline + " players");
-                                        totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                    } else {
-                                        totalUsersLabel.setText("Total Online: Unavailable");
-                                        totalUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                    }
-                                }
-                                
-                                if (data.currentWorldId != null && currentWorldUsersLabel != null) {
-                                    if (data.currentWorldCount > 0) {
-                                        currentWorldUsersLabel.setText("World " + data.currentWorldId + ": " + data.currentWorldCount + " players");
-                                        currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                    } else {
-                                        currentWorldUsersLabel.setText("World " + data.currentWorldId + ": 0 players");
-                                        currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                    }
-                                } else if (currentWorldUsersLabel != null) {
-                                    currentWorldUsersLabel.setText("Current World: Not connected");
-                                    currentWorldUsersLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                }
-                                
-                                // Update top world
-                                if (topWorldLabel != null) {
-                                    if (data.topWorldId != null && data.topWorldCount > 0) {
-                                        topWorldLabel.setText("Top World " + data.topWorldId + ": " + data.topWorldCount + " players");
-                                        topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                    } else {
-                                        topWorldLabel.setText("Top World: No data");
-                                        topWorldLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                } finally {
-                    response.close();
-                }
-            }
-        });
-    }
+    // Removed unused user count update methods - UI is commented out and data not displayed
 
     private void fetchConnectionStats() {
         fetchConnectionStatsWithRetry(0);
     }
 
+    // Cache connection stats to avoid frequent API calls
+    private volatile long lastConnectionStatsFetch = 0;
+    private static final long CONNECTION_STATS_CACHE_DURATION = 240000; // 4 minutes
+    
     private void fetchConnectionStatsWithRetry(int attemptCount) {
+        // Don't fetch if we have recent data
+        long now = System.currentTimeMillis();
+        if (now - lastConnectionStatsFetch < CONNECTION_STATS_CACHE_DURATION) {
+            log.debug("[STATS] Using cached connection stats, age: {} ms", (now - lastConnectionStatsFetch));
+            return;
+        }
         // Skip if we don't have the required dependencies
         if (httpClient == null || gson == null) {
             return;
@@ -706,7 +607,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         httpClient.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                log.debug("Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
+                log.debug("[STATS] Error fetching connection stats (attempt {}): {}", attemptCount + 1, e.getMessage());
                 
                 // Retry on network failures with exponential backoff
                 if (attemptCount < 2) {
@@ -727,9 +628,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         parseConnectionStatsResponse(responseBody);
-                        log.debug("Successfully fetched connection stats on attempt {}", attemptCount + 1);
+                        lastConnectionStatsFetch = System.currentTimeMillis();
+                        log.debug("[STATS] Successfully fetched connection stats on attempt {}", attemptCount + 1);
                     } else {
-                        log.debug("Failed to fetch connection stats: HTTP {} (attempt {})", response.code(), attemptCount + 1);
+                        log.debug("[STATS] Failed to fetch connection stats: HTTP {} (attempt {})", response.code(), attemptCount + 1);
                         
                         // Retry on HTTP errors (5xx server errors, but not 4xx client errors)
                         if (response.code() >= 500 && attemptCount < 2) {
@@ -843,16 +745,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         return null;
     }
     
-    private static class UserCountResponse {
-        @SerializedName("totalOnline")
-        public int totalOnline;
-        
-        @SerializedName("worldCounts")
-        public Map<String, Integer> worldCounts;
-        
-        @SerializedName("error")
-        public String error;
-    }
+    // Removed UserCountResponse class - no longer fetching user counts
 
     private static class ConnectionStatsResponse {
         @SerializedName("currentConnections")
@@ -871,21 +764,7 @@ public class GlobalChatInfoPanel extends PluginPanel {
         public String error;
     }
     
-    private static class UserCountData {
-        final int totalOnline;
-        final int currentWorldCount;
-        final String currentWorldId;
-        final String topWorldId;
-        final int topWorldCount;
-        
-        UserCountData(int totalOnline, int currentWorldCount, String currentWorldId, String topWorldId, int topWorldCount) {
-            this.totalOnline = totalOnline;
-            this.currentWorldCount = currentWorldCount;
-            this.currentWorldId = currentWorldId;
-            this.topWorldId = topWorldId;
-            this.topWorldCount = topWorldCount;
-        }
-    }
+    // Removed UserCountData class - no longer needed
     
     private JPanel createReadOnlyToggleSection() {
         JPanel panel = new JPanel(new GridBagLayout());
@@ -1004,13 +883,10 @@ public class GlobalChatInfoPanel extends PluginPanel {
     }
 
     public void refreshUserCounts() {
-        // updateUserCounts(); // Commented out - online users disabled
+        // No-op - user counts UI is disabled
     }
     
     public void cleanup() {
-        if (userCountUpdateTimer != null) {
-            userCountUpdateTimer.stop();
-        }
         if (connectionStatusTimer != null) {
             connectionStatusTimer.stop();
         }
@@ -1043,8 +919,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
         connectionStatusTimer = new Timer(2000, e -> updateConnectionStatus());
         connectionStatusTimer.start();
         
-        // Update connection stats every 30 seconds (less frequent)
-        Timer connectionStatsTimer = new Timer(30000, e -> fetchConnectionStats());
+        // Update connection stats every 5 minutes (reduced from 30 seconds)
+        Timer connectionStatsTimer = new Timer(300000, e -> fetchConnectionStats());
         connectionStatsTimer.start();
     }
 }
