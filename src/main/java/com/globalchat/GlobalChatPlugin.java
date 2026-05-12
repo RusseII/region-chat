@@ -979,7 +979,7 @@ public class GlobalChatPlugin extends Plugin {
 	private void showUpdateNotificationIfNeeded() {
 		// Define the current version - update this when you want to show a new
 		// notification
-		String currentVersion = "v2.3.0";
+		String currentVersion = "v2.4.0";
 
 		// Check if notification for this version has been shown
 		String lastNotificationVersion = config.updateNotificationShown();
@@ -987,8 +987,8 @@ public class GlobalChatPlugin extends Plugin {
 		if (!currentVersion.equals(lastNotificationVersion)) {
 			// Show in-game chat message directly
 			ablyManager.showUpdateNotification(
-					"<col=00ff00>Global Chat v2.3 is here!</col> " +
-							"<col=ff9040>New: Right-click any player to check if they're connected to Global Chat! Plus chat commands work seamlessly (!task, !kc), live connection status, see who's online in the info panel, and read-only mode option. "
+					"<col=00ff00>Global Chat v2.4 is here!</col> " +
+							"<col=ff9040>Fixed: crash when sending public chat on Ironman accounts and Leagues / Quest Speedrun worlds. "
 							+
 							"Support on Patreon to unlock higher message limits!</col>");
 
