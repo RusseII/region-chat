@@ -20,7 +20,7 @@ import okhttp3.Response;
 @Singleton
 public class SupporterManager {
     private static final String SUPPORTERS_URL = "https://global-chat-frontend.vercel.app/api/supporters";
-    private static final long REFRESH_INTERVAL_MINUTES = 10;
+    private static final long REFRESH_INTERVAL_MINUTES = 60;
 
     private final Gson gson;
     private final OkHttpClient httpClient;

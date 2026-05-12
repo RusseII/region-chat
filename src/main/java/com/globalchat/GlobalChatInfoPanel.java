@@ -581,8 +581,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
         // Initial update
         updateUserCounts();
         
-        // Update every 30 seconds
-        userCountUpdateTimer = new Timer(30000, e -> {
+        // Update every 5 minutes (matches frontend CDN cache window)
+        userCountUpdateTimer = new Timer(300000, e -> {
             updateUserCounts();
             fetchConnectionStats();
         });
@@ -1043,8 +1043,8 @@ public class GlobalChatInfoPanel extends PluginPanel {
         connectionStatusTimer = new Timer(2000, e -> updateConnectionStatus());
         connectionStatusTimer.start();
         
-        // Update connection stats every 30 seconds (less frequent)
-        Timer connectionStatsTimer = new Timer(30000, e -> fetchConnectionStats());
+        // Update connection stats every 5 minutes (matches frontend CDN cache window)
+        Timer connectionStatsTimer = new Timer(300000, e -> fetchConnectionStats());
         connectionStatsTimer.start();
     }
 }
