@@ -187,11 +187,6 @@ public class AblyManager {
 	private volatile long lastConnectionLimitError = 0;
 	private static final long CONNECTION_LIMIT_BACKOFF = 300000; // 5 minutes
 	private volatile int connectionAttemptCount = 0;
-	
-	// Token caching to reduce API calls
-	private volatile String cachedTokenRequest = null;
-	private volatile long tokenRequestTime = 0;
-	private static final long TOKEN_CACHE_DURATION = 3300000; // 55 minutes (tokens expire in 60)
 
 	@Inject
 	public AblyManager(Client client, GlobalChatConfig config, @Named("developerMode") boolean developerMode, SupporterManager supporterManager) {
@@ -770,14 +765,11 @@ public class AblyManager {
 			
 			ClientOptions clientOptions = new ClientOptions();
 			String name = Text.sanitize(playerName);
-			
-			// Use authCallback instead of authUrl for better control and caching
-			clientOptions.authCallback = new io.ably.lib.types.AuthOptions.TokenCallback() {
-				@Override
-				public Object getTokenRequest(io.ably.lib.types.AuthOptions.TokenParams params) throws AblyException {
-					return getOrFetchTokenRequest(name);
-				}
+			Param[] authParams = new Param[] {
+					new Param("clientId", name),
 			};
+			clientOptions.authHeaders = authParams;
+			clientOptions.authUrl = "https://global-chat-frontend.vercel.app/api/token";
 			
 			// Critical: Disable echo messages to reduce message count by 50%
 			clientOptions.echoMessages = false;
@@ -846,59 +838,6 @@ public class AblyManager {
 		return keyBuilder.toString();
 	}
 	
-	private synchronized Object getOrFetchTokenRequest(String clientId) throws AblyException {
-		long now = System.currentTimeMillis();
-		
-		// Check if we have a valid cached token
-		if (cachedTokenRequest != null && (now - tokenRequestTime) < TOKEN_CACHE_DURATION) {
-			log.debug("[TOKEN-CACHE] Using cached token request, age: {} ms", (now - tokenRequestTime));
-			// Parse the cached JSON and return it
-			try {
-				return gson.fromJson(cachedTokenRequest, JsonObject.class);
-			} catch (Exception e) {
-				log.debug("[TOKEN-CACHE] Error parsing cached token, will fetch new one", e);
-				cachedTokenRequest = null;
-			}
-		}
-		
-		log.debug("[TOKEN-FETCH] Fetching new token request from API");
-		
-		try {
-			// Make HTTP request to get token
-			java.net.URL url = new java.net.URL("https://global-chat-frontend.vercel.app/api/token");
-			java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-			conn.setRequestMethod("GET");
-			conn.setRequestProperty("clientId", clientId);
-			conn.setConnectTimeout(5000);
-			conn.setReadTimeout(5000);
-			
-			int responseCode = conn.getResponseCode();
-			if (responseCode == 200) {
-				try (java.io.BufferedReader br = new java.io.BufferedReader(
-						new java.io.InputStreamReader(conn.getInputStream()))) {
-					StringBuilder response = new StringBuilder();
-					String line;
-					while ((line = br.readLine()) != null) {
-						response.append(line);
-					}
-					
-					// Cache the response
-					cachedTokenRequest = response.toString();
-					tokenRequestTime = now;
-					log.debug("[TOKEN-FETCH] Successfully fetched and cached token request");
-					
-					// Return parsed JSON
-					return gson.fromJson(cachedTokenRequest, JsonObject.class);
-				}
-			} else {
-			throw new AblyException("Failed to fetch token: HTTP " + responseCode, 40140, responseCode);
-			}
-		} catch (Exception e) {
-			log.debug("[TOKEN-FETCH] Error fetching token request", e);
-			throw new AblyException("Failed to fetch token: " + e.getMessage(), 40140, 500);
-		}
-	}
-
 	public void subscribeToCorrectChannel(String channelName, String key) {
 		// Validate inputs
 		if (channelName == null || channelName.trim().isEmpty()) {

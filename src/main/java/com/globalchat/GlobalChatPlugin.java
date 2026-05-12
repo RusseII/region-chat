@@ -270,19 +270,18 @@ public class GlobalChatPlugin extends Plugin {
 									}
 								}
 							});
-						}
+							}
 						} else {
 							log.debug("[RECONNECT-SKIP] Skipping - still in backoff period");
 						}
-						} else if (ablyManager.isConnected()) {
-							// Reset reconnect attempts on successful connection
-							if (reconnectAttempts > 0) {
-								log.debug("[RECONNECT-SUCCESS] Connected after {} attempts", reconnectAttempts);
-								reconnectAttempts = 0;
-							}
-						}
 						return true;
 					});
+				} else if (ablyManager.isConnected()) {
+					// Reset reconnect attempts on successful connection
+					if (reconnectAttempts > 0) {
+						log.debug("[RECONNECT-SUCCESS] Connected after {} attempts", reconnectAttempts);
+						reconnectAttempts = 0;
+					}
 				}
 			} catch (Exception e) {
 				log.debug("Error during auto-reconnect attempt", e);
@@ -519,6 +518,13 @@ public class GlobalChatPlugin extends Plugin {
 	// Single method approach using scheduler to handle transformation detection
 	@Subscribe
 	public void onChatMessage(ChatMessage event) {
+		// Re-entry guard: skip messages we re-injected ourselves to add icons.
+		// Without this, the re-injection at line ~733 loops back into this
+		// handler and stack-overflows (notably on Leagues worlds where the
+		// name-based check below fails to filter the re-injected event).
+		if (event.getName() != null && event.getName().contains("<img=19>")) {
+			return;
+		}
 		String cleanedMessage = Text.removeTags(event.getMessage());
 		String cleanedName = Text.sanitize(event.getName());
 		boolean isPublic = event.getType().equals(ChatMessageType.PUBLICCHAT);
