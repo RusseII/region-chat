@@ -178,12 +178,8 @@ public class GlobalChatPlugin extends Plugin {
 		// Auto-reconnect mechanism - try to reconnect every 10 seconds if disconnected
 		scheduler.scheduleAtFixedRate(() -> {
 			try {
-				// Log current connection state
-				boolean isConnected = ablyManager.isConnected();
-				log.debug("[RECONNECT-CHECK] Connected: {}, ReconnectAttempts: {}", isConnected, reconnectAttempts);
-				
 				// Only run reconnection logic if we need to (not connected and logged in)
-				if (!isConnected) {
+				if (!ablyManager.isConnected()) {
 					// Move client data access to client thread to avoid thread safety issues
 					clientThread.invokeLater(() -> {
 						if (client.getGameState() == GameState.LOGGED_IN &&
@@ -208,45 +204,34 @@ public class GlobalChatPlugin extends Plugin {
 							lastReconnectAttempt = now;
 							reconnectAttempts++;
 
-							// Log all attempts for debugging
-							log.debug("[RECONNECT-ATTEMPT] #{} for player: {} (raw: {}), backoff: {}ms", 
-								reconnectAttempts, playerName, playerNameRaw, backoffTime);
+							// Only log every 3rd attempt to reduce spam
+							if (reconnectAttempts % 3 == 1) {
+								log.debug("Auto-reconnect attempt #{} for player: {} (raw: {})", 
+									reconnectAttempts, playerName, playerNameRaw);
+							}
 
 							// Execute reconnection off client thread
 							scheduler.execute(() -> {
 								try {
-									log.debug("[RECONNECT-START] Calling startConnection for attempt #{}", reconnectAttempts);
 									ablyManager.startConnection(playerName);
-									
-									// Wait a bit for connection to establish before subscribing
-									scheduler.schedule(() -> {
-										if (ablyManager.isConnected()) {
-											log.debug("[RECONNECT-SUBSCRIBE] Connection established, subscribing to channels");
-											
-											// Re-subscribe to channels using captured world info
-											ablyManager.subscribeToCorrectChannel("p:" + playerName, world);
-											ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
 
-											// Re-subscribe to friends chat if available
-											clientThread.invokeLater(() -> {
-												FriendsChatManager friendsChatManager = client.getFriendsChatManager();
-												if (friendsChatManager != null && friendsChatManager.getOwner() != null) {
-													String friendsChat = friendsChatManager.getOwner();
-													ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
-												}
-												return true;
-											});
-										} else {
-											log.debug("[RECONNECT-SUBSCRIBE] Connection not ready yet, will retry on next cycle");
+									// Re-subscribe to channels using captured world info
+									ablyManager.subscribeToCorrectChannel("p:" + playerName, world);
+									ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
+
+									// Re-subscribe to friends chat if available
+									clientThread.invokeLater(() -> {
+										FriendsChatManager friendsChatManager = client.getFriendsChatManager();
+										if (friendsChatManager != null && friendsChatManager.getOwner() != null) {
+											String friendsChat = friendsChatManager.getOwner();
+											ablyManager.subscribeToCorrectChannel("f:" + friendsChat, "pub");
 										}
-									}, 1000, TimeUnit.MILLISECONDS);
+										return true;
+									});
 									
 									// Check connection after a delay and notify user if failed
 									scheduler.schedule(() -> {
-										boolean connected = ablyManager.isConnected();
-										log.debug("[RECONNECT-RESULT] Attempt #{} - Connected: {}", reconnectAttempts, connected);
-										
-										if (!connected) {
+										if (!ablyManager.isConnected()) {
 											// Only show message every 5 attempts to reduce spam
 											if (reconnectAttempts % 5 == 1) {
 												clientThread.invokeLater(() -> {
@@ -259,7 +244,7 @@ public class GlobalChatPlugin extends Plugin {
 									}, 2000, TimeUnit.MILLISECONDS);
 									
 								} catch (Exception e) {
-									log.debug("[RECONNECT-ERROR] Error during attempt #{}", reconnectAttempts, e);
+									log.debug("Error during reconnection", e);
 									// Only show error message every 5 attempts to reduce spam
 									if (reconnectAttempts % 5 == 1) {
 										clientThread.invokeLater(() -> {
@@ -270,18 +255,13 @@ public class GlobalChatPlugin extends Plugin {
 									}
 								}
 							});
-							}
-						} else {
-							log.debug("[RECONNECT-SKIP] Skipping - still in backoff period");
+						}
+						} else if (ablyManager.isConnected()) {
+							// Reset reconnect attempts on successful connection
+							reconnectAttempts = 0;
 						}
 						return true;
 					});
-				} else if (ablyManager.isConnected()) {
-					// Reset reconnect attempts on successful connection
-					if (reconnectAttempts > 0) {
-						log.debug("[RECONNECT-SUCCESS] Connected after {} attempts", reconnectAttempts);
-						reconnectAttempts = 0;
-					}
 				}
 			} catch (Exception e) {
 				log.debug("Error during auto-reconnect attempt", e);
@@ -435,18 +415,8 @@ public class GlobalChatPlugin extends Plugin {
 				log.debug("Connecting with player name - Raw: '{}', Sanitized: '{}'", name, sanitizedName);
 				
 				ablyManager.startConnection(sanitizedName);
-				
-				// Wait for connection to establish before subscribing
-				scheduler.schedule(() -> {
-					if (ablyManager.isConnected()) {
-						log.debug("[INITIAL-SUBSCRIBE] Connection established, subscribing to channels");
-						ablyManager.subscribeToCorrectChannel("p:" + sanitizedName, world);
-						ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
-					} else {
-						log.debug("[INITIAL-SUBSCRIBE] Connection not ready yet");
-					}
-				}, 1000, TimeUnit.MILLISECONDS);
-				
+				ablyManager.subscribeToCorrectChannel("p:" + sanitizedName, world);
+				ablyManager.subscribeToCorrectChannel("w:" + world, "pub");
 				shouldConnect = false;
 
 				// Show update notification if needed
@@ -518,10 +488,9 @@ public class GlobalChatPlugin extends Plugin {
 	// Single method approach using scheduler to handle transformation detection
 	@Subscribe
 	public void onChatMessage(ChatMessage event) {
-		// Re-entry guard: skip messages we re-injected ourselves to add icons.
-		// Without this, the re-injection at line ~733 loops back into this
-		// handler and stack-overflows (notably on Leagues worlds where the
-		// name-based check below fails to filter the re-injected event).
+		// Skip messages we re-injected ourselves to add icons. Without this,
+		// the re-injection below loops back into this handler and stack-overflows
+		// on Leagues/QSR/Ironman where account icons get prepended.
 		if (event.getName() != null && event.getName().contains("<img=19>")) {
 			return;
 		}
