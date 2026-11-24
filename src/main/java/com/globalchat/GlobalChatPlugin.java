@@ -49,7 +49,7 @@ import net.runelite.api.clan.ClanChannel;
 import net.runelite.api.events.WorldChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ClanChannelChanged;
-import net.runelite.api.events.FriendsChatChanged;
+import net.runelite.api.events.FriendsChatSync;
 import net.runelite.api.events.FriendsChatMemberJoined;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.menus.MenuManager;
@@ -476,8 +476,8 @@ public class GlobalChatPlugin extends Plugin {
 	}
 
 	@Subscribe
-	public void onFriendsChatChanged(FriendsChatChanged event) {
-		if (!event.isJoined()) {
+	public void onFriendsChatSync(FriendsChatSync event) {
+		if (!event.isSync()) {
 			if (friendsChat != null) {
 				ablyManager.closeSpecificChannel("f:" + friendsChat);
 				friendsChat = null;
